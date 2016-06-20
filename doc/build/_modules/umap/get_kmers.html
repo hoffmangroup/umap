@@ -1,0 +1,366 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>umap.get_kmers &mdash; Umap 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Umap 0.1.0 documentation" href="../../documentation.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for umap.get_kmers</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">argparse</span> <span class="kn">import</span> <span class="n">ArgumentParser</span>
+<span class="kn">import</span> <span class="nn">gzip</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+
+
+<span class="k">def</span> <span class="nf">get_args</span><span class="p">():</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">ArgumentParser</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Creates list of unique Kmers &quot;</span>
+        <span class="s2">&quot;for each 1Mb of the genome. Relies on an environmental &quot;</span>
+        <span class="s2">&quot;variable such as SGE_TASK_ID to identify the correct &quot;</span>
+        <span class="s2">&quot;megabase of the genome for this purpose. &quot;</span>
+        <span class="s2">&quot;If not using job arrays, specify -job_id manually.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;chrsize_path&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to 2 column tsv file where first column is &quot;</span>
+        <span class="s2">&quot;chromosome name and second column is chromosome size&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;out_dir&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to the directory for creating &quot;</span>
+        <span class="s2">&quot;&lt;chromosome&gt;.&lt;Megabase&gt;.&lt;kmer&gt;.kmer.gz files&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;kmer&quot;</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">&quot;infer&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The software would infer it based on the &quot;</span>
+        <span class="s2">&quot;name of the &#39;out_dir&#39;. If it is set and &quot;</span>
+        <span class="s2">&quot;contradicts the &#39;out_dir&#39;, a subfolder &quot;</span>
+        <span class="s2">&quot;under out_dir will be created named &#39;kmer&#39; and &quot;</span>
+        <span class="s2">&quot;out_dir will be changed to that.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;chr_dir&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to directory with &lt;chromosome&gt;.fasta files.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;-job_id&quot;</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If not submitted in job array, would require this &quot;</span>
+        <span class="s2">&quot;parameter to be set. (1-based index)&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;-var_id&quot;</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">&quot;SGE_TASK_ID&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The variable name that the script would use &quot;</span>
+        <span class="s2">&quot;for identifying the job id. By default: SGE_TASK_ID.&quot;</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="n">out_dir</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">out_dir</span>
+    <span class="n">inferred_kmer</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">out_dir</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">kmer</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">kmer</span>
+    <span class="n">job_id</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">job_id</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">kmer</span> <span class="o">==</span> <span class="s2">&quot;infer&quot;</span><span class="p">:</span>
+        <span class="n">kmer</span> <span class="o">=</span> <span class="n">inferred_kmer</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">kmer</span> <span class="o">!=</span> <span class="n">inferred_kmer</span><span class="p">:</span>
+        <span class="n">kmer</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">kmer</span>
+        <span class="n">out_dir</span> <span class="o">=</span> <span class="s2">&quot;{}/{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">job_id</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">job_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">args</span><span class="o">.</span><span class="n">var_id</span><span class="p">])</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">out_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">args</span><span class="o">.</span><span class="n">chrsize_path</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span>
+                <span class="n">kmer</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">chr_dir</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">out_list</span>
+
+
+<div class="viewcode-block" id="GetKmers"><a class="viewcode-back" href="../../documentation.html#umap.GetKmers">[docs]</a><span class="k">class</span> <span class="nc">GetKmers</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span>
+                 <span class="n">chr_dir</span><span class="p">,</span> <span class="n">chrsize_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates all the possible k-mers for part of the genome.</span>
+
+<span class="sd">        Used a referece file to find the appropriate chromosome,</span>
+<span class="sd">        start and end position. Passes through the fasta file</span>
+<span class="sd">        of the chromosome and generates all of the possible k-mers.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">        :param out_dir: Directory for saving &lt;chrom&gt;.&lt;jobid&gt;.kmer.gz files</span>
+<span class="sd">        :param str kmer: k-mer string such as &#39;k24&#39;</span>
+<span class="sd">        :param int job_id: Reference ID used for finding chrom, start and end</span>
+<span class="sd">        :param chr_dir: Path to directory with chromosome fasta files</span>
+<span class="sd">        :param chrsize_path: Path to 2 column file of chrom\tsize\n</span>
+
+<span class="sd">        :returns: An object with methods such as get_step_fasta(),</span>
+<span class="sd">            get_seq_ar(), write_kmers() and write_regions().</span>
+
+<span class="sd">        :raises ValueError: if expected chromosome path does not exist</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">=</span> <span class="n">out_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kmer</span> <span class="o">=</span> <span class="n">kmer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">job_id</span> <span class="o">=</span> <span class="n">job_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chrsize_path</span> <span class="o">=</span> <span class="n">chrsize_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chr_dir</span> <span class="o">=</span> <span class="n">chr_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chrom</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_region</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span> <span class="o">=</span> <span class="s2">&quot;{}/{}.fasta&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">chr_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">chrom</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.fasta&quot;</span><span class="p">,</span> <span class="s2">&quot;.fa&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;{} does not exist&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_region</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Find chromosomal chunk</span>
+
+<span class="sd">        Using job_id and chrsize_path, finds chromosome,</span>
+<span class="sd">        start and end. Looks if chrsize_index.tsv exists.</span>
+<span class="sd">        If it doesn&#39;t, it will create chrsize_index.tsv.</span>
+<span class="sd">        Otherwise will use it for finding that information.</span>
+
+<span class="sd">        :returns: chrom, start, end</span>
+
+<span class="sd">        :raises ValueError: If job_id is out of expected range</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chrsize_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chrsize_path</span>
+        <span class="n">job_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_id</span>
+        <span class="n">CHUNK_SIZE</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e6</span><span class="p">)</span>
+        <span class="n">ind_path</span> <span class="o">=</span> <span class="s2">&quot;{}/chrsize_index.tsv&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">chrsize_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">ind_path</span><span class="p">):</span>
+            <span class="n">ind_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">ind_path</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">dict_inds</span> <span class="o">=</span> <span class="n">ind_df</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ind_link</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">ind_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span>
+            <span class="n">ind_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;Index</span><span class="se">\t</span><span class="s2">Chromosome</span><span class="se">\t</span><span class="s2">Start</span><span class="se">\t</span><span class="s2">End</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">ind</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># Identifying chromosome, start, end for job_id</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">chrsize_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">chrsize_link</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">chrsize_line</span> <span class="ow">in</span> <span class="n">chrsize_link</span><span class="p">:</span>
+                    <span class="n">chrom</span><span class="p">,</span> <span class="n">len_chr</span> <span class="o">=</span> <span class="n">chrsize_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">len_chr</span><span class="p">)</span> <span class="o">+</span> <span class="n">start</span>
+                    <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">CHUNK_SIZE</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="n">end</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">pos</span> <span class="o">+</span> <span class="n">CHUNK_SIZE</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&gt;</span> <span class="n">end</span><span class="p">:</span>
+                                <span class="n">pos_end</span> <span class="o">=</span> <span class="n">end</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">pos_end</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">+</span> <span class="n">CHUNK_SIZE</span> <span class="o">-</span> <span class="mi">1</span>
+                            <span class="n">ind_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+                                <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">ind</span><span class="p">),</span> <span class="n">chrom</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">pos</span><span class="p">),</span>
+                                           <span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">pos_end</span><span class="p">))])</span> <span class="o">+</span>
+                                <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                            <span class="n">ind</span> <span class="o">=</span> <span class="n">ind</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">ind_link</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="n">ind_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">ind_path</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">index_col</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">dict_inds</span> <span class="o">=</span> <span class="n">ind_df</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">chrom</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">dict_inds</span><span class="p">[</span><span class="n">qry</span><span class="p">][</span><span class="n">job_id</span><span class="p">]</span> <span class="k">for</span>
+                <span class="n">qry</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Chromosome&quot;</span><span class="p">,</span> <span class="s2">&quot;Start&quot;</span><span class="p">,</span> <span class="s2">&quot;End&quot;</span><span class="p">]]</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;{} Job id is larger than available indices&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">job_id</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">chrom</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">start</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_step_fasta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Finds number of nucleotides at each line of FASTA</span>
+
+
+<span class="sd">        :raises ValueError: If top 10 FASTA lines have</span>
+<span class="sd">            sequences of varying length</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chr_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span>
+        <span class="n">line_nums</span> <span class="o">=</span> <span class="mi">10</span>
+        <span class="n">len_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">chr_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">chr_link</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line_num</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">line_nums</span><span class="p">):</span>
+                <span class="n">chr_line</span> <span class="o">=</span> <span class="n">chr_link</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="s2">&quot;&gt;&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">chr_line</span><span class="p">:</span>
+                    <span class="n">len_line</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">chr_line</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">len_line</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">len_lines</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">chr_line</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+                            <span class="n">len_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">len_line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">len_lines</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span><span class="p">(</span><span class="n">len_lines</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Top 10 FASTA lines have sequences of varying length&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_seq_ar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fasta_fix</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Gets sequence as numpy array</span>
+
+<span class="sd">        get_seq_ar creates a numpy array matching sequence</span>
+<span class="sd">        of the region specified by chromosome, start and</span>
+<span class="sd">        end. However it starts the sequence with kmer - 1</span>
+<span class="sd">        less than the specified start to account for the</span>
+<span class="sd">        missing kmers from the previous chunk of chromosome.</span>
+<span class="sd">        Each element is one line of a fasta file that may be</span>
+<span class="sd">        cut to match the exact start/end positions.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">        :param int fasta_fix: Number of nucleotides per fasta line.</span>
+
+<span class="sd">        :returns: Numpy array with each member being one line of FASTA</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span>
+        <span class="n">end</span><span class="p">,</span> <span class="n">chr_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">chr_path</span>
+        <span class="n">kmer</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kmer</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">-</span> <span class="n">kmer</span>
+        <span class="k">if</span> <span class="n">start</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">st_line</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">start</span> <span class="o">/</span> <span class="n">fasta_fix</span><span class="p">))</span>
+        <span class="n">st_line_pos</span> <span class="o">=</span> <span class="n">start</span> <span class="o">%</span> <span class="n">fasta_fix</span>
+        <span class="n">end_line</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">end</span> <span class="o">/</span> <span class="n">fasta_fix</span><span class="p">))</span>
+        <span class="n">end_line_pos</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span> <span class="o">%</span> <span class="n">fasta_fix</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">seq_ar</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">end_line</span> <span class="o">-</span> <span class="n">st_line</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+                          <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;|S{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fasta_fix</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">ind_seq</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">STORE_LINE</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">chr_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">chr_link</span><span class="p">:</span>
+            <span class="n">line_ind</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">each_line</span> <span class="ow">in</span> <span class="n">chr_link</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">line_ind</span> <span class="o">==</span> <span class="n">st_line</span><span class="p">:</span>
+                    <span class="n">STORE_LINE</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="n">each_line</span> <span class="o">=</span> <span class="n">each_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()[</span><span class="n">st_line_pos</span><span class="p">:]</span>
+                <span class="k">if</span> <span class="n">STORE_LINE</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">line_ind</span> <span class="o">==</span> <span class="n">end_line</span><span class="p">:</span>
+                        <span class="n">STORE_LINE</span> <span class="o">=</span> <span class="bp">False</span>
+                        <span class="n">each_line</span> <span class="o">=</span> <span class="n">each_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()[:</span><span class="n">end_line_pos</span><span class="p">]</span>
+                    <span class="n">seq_ar</span><span class="p">[</span><span class="n">ind_seq</span><span class="p">]</span> <span class="o">=</span> <span class="n">each_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+                    <span class="n">ind_seq</span> <span class="o">=</span> <span class="n">ind_seq</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">line_ind</span> <span class="o">=</span> <span class="n">line_ind</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="s2">&quot;chr&quot;</span> <span class="ow">in</span> <span class="n">seq_ar</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">seq_ar</span> <span class="o">=</span> <span class="n">seq_ar</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">return</span> <span class="n">seq_ar</span>
+
+    <span class="k">def</span> <span class="nf">write_kmers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cur_seq</span><span class="p">,</span> <span class="n">kmer_int</span><span class="p">,</span> <span class="n">out_link</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates k-mers and saves them to the file</span>
+
+<span class="sd">        Using a numpy array of sequences, generates and</span>
+<span class="sd">        saves all of the possible k-mers.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">        :param cur_seq: A string of sequences</span>
+<span class="sd">        :param kmer_int: An integer denoting the k-mer size</span>
+<span class="sd">        :param out_link: File link for writing k-mers</span>
+
+<span class="sd">        :returns: May modify cur_seq by deducing the k-mers that</span>
+<span class="sd">            are written to the out_link file object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cur_seq</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">kmer_int</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cur_seq</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">cur_seq</span><span class="p">)</span> <span class="o">==</span> <span class="n">kmer_int</span><span class="p">:</span>
+            <span class="n">out_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cur_seq</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">cur_seq</span> <span class="o">=</span> <span class="n">cur_seq</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="k">return</span> <span class="n">cur_seq</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cur_seq</span><span class="p">)</span> <span class="o">-</span> <span class="n">kmer_int</span><span class="p">):</span>
+                <span class="n">j</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="n">kmer_int</span>
+                <span class="k">if</span> <span class="n">j</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">cur_seq</span><span class="p">):</span>
+                    <span class="n">j</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cur_seq</span><span class="p">)</span>
+                <span class="n">seq_out</span> <span class="o">=</span> <span class="n">cur_seq</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s2">&quot;N&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seq_out</span><span class="p">:</span>
+                    <span class="n">out_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">seq_out</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">cur_seq</span> <span class="o">=</span> <span class="n">cur_seq</span><span class="p">[(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):]</span>
+            <span class="k">return</span> <span class="n">cur_seq</span>
+
+    <span class="k">def</span> <span class="nf">write_region</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wrapper of GetKmers to get and write k-mers</span>
+
+<span class="sd">        write_region method executes all the other methods</span>
+<span class="sd">        of the GetKmers class for writing out all of the</span>
+<span class="sd">        possible k-mers from chunk of a FASTA file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">job_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kmer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_id</span>
+        <span class="n">chrom</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chrom</span>
+        <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span>
+        <span class="n">out_path</span> <span class="o">=</span> <span class="s2">&quot;{}/{}.{}.{}.kmer.gz&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">out_dir</span><span class="p">,</span> <span class="n">chrom</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span> <span class="n">kmer</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+        <span class="n">out_link</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">out_path</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+        <span class="n">fasta_fix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_step_fasta</span><span class="p">()</span>
+        <span class="n">kmer_int</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">kmer</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+        <span class="n">seq_ar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_seq_ar</span><span class="p">(</span><span class="n">fasta_fix</span><span class="p">)</span>
+        <span class="n">cur_seq</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">each_seq</span> <span class="ow">in</span> <span class="n">seq_ar</span><span class="p">:</span>
+            <span class="n">cur_seq</span> <span class="o">=</span> <span class="n">cur_seq</span> <span class="o">+</span> <span class="n">each_seq</span>
+            <span class="n">cur_seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">write_kmers</span><span class="p">(</span><span class="n">cur_seq</span><span class="p">,</span> <span class="n">kmer_int</span><span class="p">,</span> <span class="n">out_link</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Created all sequences for {}:{}-{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">chrom</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
+        <span class="n">out_link</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">chrsize_path</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span> <span class="n">chr_dir</span> <span class="o">=</span> <span class="n">get_args</span><span class="p">()</span>
+    <span class="n">GetKmerObj</span> <span class="o">=</span> <span class="n">GetKmers</span><span class="p">(</span>
+        <span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span>
+        <span class="n">chr_dir</span><span class="p">,</span> <span class="n">chrsize_path</span><span class="p">)</span>
+    <span class="n">GetKmerObj</span><span class="o">.</span><span class="n">write_region</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../documentation.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Mehran Karimzadeh, Carl Ernst, Anshul Kundaje, Michael M. Hoffman.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

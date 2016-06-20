@@ -1,0 +1,8 @@
+\indexentry{umap (module)|hyperpage}{9}
+\indexentry{GetKmers (class in umap)|hyperpage}{9}
+\indexentry{BowtieWrapper (class in umap)|hyperpage}{11}
+\indexentry{UnifyBowtie (class in umap)|hyperpage}{13}
+\indexentry{CombineUmaps (class in umap)|hyperpage}{15}
+\indexentry{Int8Handler (class in umap)|hyperpage}{17}
+\indexentry{write\_beds() (umap.Int8Handler method)|hyperpage}{17}
+\indexentry{write\_as\_wig() (umap.Int8Handler method)|hyperpage}{17}

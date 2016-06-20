@@ -1,0 +1,17 @@
+MANIFEST.in
+README.rst
+setup.py
+umap/__init__.py
+umap/combine_umaps.py
+umap/get_kmers.py
+umap/handle_fasta.py
+umap/run_bowtie.py
+umap/ubismap.py
+umap/uint8_to_bed.py
+umap/unify_bowtie.py
+umap.egg-info/PKG-INFO
+umap.egg-info/SOURCES.txt
+umap.egg-info/dependency_links.txt
+umap.egg-info/not-zip-safe
+umap.egg-info/requires.txt
+umap.egg-info/top_level.txt

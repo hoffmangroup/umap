@@ -1,0 +1,29 @@
+\begin{theindex}
+\def\bigletter#1{{\Large\sffamily#1}\nopagebreak\vspace{1mm}}
+
+  \bigletter B
+  \item BowtieWrapper (class in umap), \hyperpage{11}
+
+  \indexspace
+  \bigletter C
+  \item CombineUmaps (class in umap), \hyperpage{15}
+
+  \indexspace
+  \bigletter G
+  \item GetKmers (class in umap), \hyperpage{9}
+
+  \indexspace
+  \bigletter I
+  \item Int8Handler (class in umap), \hyperpage{17}
+
+  \indexspace
+  \bigletter U
+  \item umap (module), \hyperpage{9}
+  \item UnifyBowtie (class in umap), \hyperpage{13}
+
+  \indexspace
+  \bigletter W
+  \item write\_as\_wig() (umap.Int8Handler method), \hyperpage{17}
+  \item write\_beds() (umap.Int8Handler method), \hyperpage{17}
+
+\end{theindex}

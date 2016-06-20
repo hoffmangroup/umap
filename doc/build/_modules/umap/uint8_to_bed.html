@@ -1,0 +1,443 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>umap.uint8_to_bed &mdash; Umap 0.1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Umap 0.1.0 documentation" href="../../documentation.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for umap.uint8_to_bed</h1><div class="highlight"><pre>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">gzip</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+
+<span class="k">def</span> <span class="nf">subset_list</span><span class="p">(</span><span class="n">my_list</span><span class="p">,</span> <span class="n">regex</span><span class="p">,</span> <span class="n">reg_neg</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="n">out_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">my_list</span><span class="p">:</span>
+        <span class="n">RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">RE</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">reg_neg</span><span class="p">:</span>
+            <span class="n">out_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">RE</span> <span class="ow">and</span> <span class="n">reg_neg</span><span class="p">:</span>
+            <span class="n">out_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out_list</span>
+
+
+<div class="viewcode-block" id="Int8Handler"><a class="viewcode-back" href="../../documentation.html#umap.Int8Handler">[docs]</a><span class="k">class</span> <span class="nc">Int8Handler</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_dir</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">C2T</span><span class="p">,</span> <span class="n">G2A</span><span class="p">,</span> <span class="n">chrsize_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Infers important directory structure from in_dir</span>
+
+<span class="sd">        The Int8Handler class requires in_dir argument which</span>
+<span class="sd">        is a directory with subfolders named as k&lt;integer&gt;</span>
+<span class="sd">        that have &lt;chrom&gt;.&lt;kmer&gt;.uint8.unique.gz files.</span>
+<span class="sd">        The Int8Handler.write_beds method creates one</span>
+<span class="sd">        browser extensible data (BED) file for each of the</span>
+<span class="sd">        k&lt;integer&gt; subfolders.</span>
+
+<span class="sd">        :param in_dir: Directory with &lt;chrom&gt;.uint8.unique.gz files</span>
+<span class="sd">        :param out_dir: Directory for saving output BED files</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_dir</span> <span class="o">=</span> <span class="n">in_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">C2T</span> <span class="o">=</span> <span class="n">C2T</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">G2A</span> <span class="o">=</span> <span class="n">G2A</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chrsize_path</span> <span class="o">=</span> <span class="n">chrsize_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_prev_dir</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">in_dir</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fix</span> <span class="o">=</span> <span class="s2">&quot;.uint8.unique.gz&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">uint8s</span> <span class="o">=</span> <span class="n">subset_list</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">in_dir</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">fix</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prev_dir</span> <span class="o">=</span> <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">in_dir</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kmers</span> <span class="o">=</span> <span class="n">subset_list</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">in_prev_dir</span><span class="p">))[</span><span class="mi">1</span><span class="p">],</span>
+                                 <span class="s2">&quot;^k&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span> <span class="o">=</span> <span class="n">out_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_type</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chrsize_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_chrsize_dict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chroms</span> <span class="o">=</span> <span class="p">[</span><span class="n">each_chr</span> <span class="k">for</span> <span class="n">each_chr</span> <span class="ow">in</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">chrsize_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span>
+                       <span class="s2">&quot;RC&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">each_chr</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">find_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">C2T</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="s2">&quot;Bismap.Forward&quot;</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">G2A</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="s2">&quot;Bismap.Reverse&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="s2">&quot;Umap&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span>
+
+<div class="viewcode-block" id="Int8Handler.write_beds"><a class="viewcode-back" href="../../documentation.html#umap.Int8Handler.write_beds">[docs]</a>    <span class="k">def</span> <span class="nf">write_beds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_label</span><span class="p">,</span> <span class="n">kmer_cur</span><span class="p">,</span>
+                   <span class="n">WriteUnique</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert uint8 files to BED</span>
+
+<span class="sd">        A method of class Int8Handler, it reads uint8 files of</span>
+<span class="sd">        different chromosomes and saves them into a BED file.</span>
+<span class="sd">        This is the only method in this class that needs</span>
+<span class="sd">        to be called manually by the user.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            out_label: Will be used in output names: &lt;kmer&gt;.&lt;out_label&gt;.bed.gz</span>
+<span class="sd">            kmer_cur: k-mer size in format of k&lt;integer&gt;</span>
+<span class="sd">            WriteUnique: Defaults to False. Will merge and save uint files.</span>
+<span class="sd">                Use if working with -Bismap and have reverse</span>
+<span class="sd">                complemented chromosomes.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Saved ths output to a gzipped BED file</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            Warning: If no uniquely mappable read is found in</span>
+<span class="sd">                any of the uint8 arrays.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">kmer</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">kmer_cur</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+        <span class="n">STRAND</span> <span class="o">=</span> <span class="s2">&quot;+&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">G2A</span><span class="p">:</span>
+            <span class="n">STRAND</span> <span class="o">=</span> <span class="s2">&quot;-&quot;</span>
+        <span class="n">in_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_dir</span>
+        <span class="n">all_chrs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chroms</span>
+        <span class="n">all_chrs</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">cur_chr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">chroms</span><span class="p">:</span>
+            <span class="n">other_chr</span> <span class="o">=</span> <span class="n">cur_chr</span> <span class="o">+</span> <span class="s2">&quot;_RC&quot;</span>
+            <span class="n">uint_path</span> <span class="o">=</span> <span class="s2">&quot;{}/{}{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">in_dir</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fix</span><span class="p">)</span>
+            <span class="n">uniquely_mappable</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_uint_ar</span><span class="p">(</span>
+                <span class="n">uint_path</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="s2">&quot;Umap&quot;</span><span class="p">:</span>
+                <span class="n">uint_path_other</span> <span class="o">=</span> <span class="n">in_dir</span> <span class="o">+</span>\
+                    <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">uint_path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">cur_chr</span><span class="p">,</span> <span class="n">other_chr</span><span class="p">)</span>
+                <span class="n">uniquely_mappable_other</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_uint_ar</span><span class="p">(</span>
+                    <span class="n">uint_path_other</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">other_chr</span><span class="p">)</span>
+
+                <span class="c1"># Remove the last k nucleotides of the reverse chromosome</span>
+                <span class="n">uniquely_mappable_other</span> <span class="o">=</span> <span class="n">uniquely_mappable_other</span><span class="p">[:</span><span class="o">-</span><span class="n">kmer</span><span class="p">]</span>
+
+                <span class="c1"># Reverse the chromosome (Hence it&#39;s a reverse complement)</span>
+                <span class="n">uniquely_mappable_other</span> <span class="o">=</span> <span class="n">uniquely_mappable_other</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+                <span class="c1"># Remove the last k nucleotides of the forward chromosome</span>
+                <span class="n">uniquely_mappable</span> <span class="o">=</span> <span class="n">uniquely_mappable</span><span class="p">[:</span><span class="o">-</span><span class="n">kmer</span><span class="p">]</span>
+
+                <span class="c1"># Merge to find uniquely mappable reads in both strands</span>
+                <span class="n">uniquely_mappable</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span>
+                        <span class="n">uniquely_mappable_other</span><span class="p">,</span> <span class="n">uniquely_mappable</span><span class="p">),</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">WriteUnique</span><span class="p">:</span>
+                    <span class="n">unique_ar</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                    <span class="n">out_dir_uint</span> <span class="o">=</span> <span class="s2">&quot;{}/k{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">out_dir_uint</span><span class="p">):</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">out_dir_uint</span><span class="p">)</span>
+                    <span class="n">out_path_uint</span> <span class="o">=</span> <span class="s2">&quot;{}/{}.k{}.uint8.unique.gz&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">out_dir_uint</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">,</span> <span class="n">kmer</span><span class="p">))</span>
+                    <span class="n">out_link_uint</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">out_path_uint</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+                    <span class="n">out_link_uint</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">unique_ar</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
+                    <span class="n">out_link_uint</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+            <span class="n">bed_kmer_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_bed6</span><span class="p">(</span>
+                <span class="n">uniquely_mappable</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">uint_path</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">)</span>
+
+            <span class="c1"># Write the BED6 to a gzipped tsv file</span>
+            <span class="n">out_name</span> <span class="o">=</span> <span class="s2">&quot;{}/{}.{}.bed.gz&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">kmer_cur</span><span class="p">,</span> <span class="n">out_label</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cur_chr</span> <span class="o">==</span> <span class="n">all_chrs</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_header</span><span class="p">(</span><span class="n">kmer_cur</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
+                <span class="n">out_link</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">out_name</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+                <span class="n">out_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">header</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">out_link</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">out_name</span><span class="p">,</span> <span class="s2">&quot;ab&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bed_kmer_pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s2">&quot;Found </span><span class="si">%d</span><span class="s2"> regions in </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>\
+                    <span class="p">(</span><span class="n">bed_kmer_pos</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">cur_chr</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">bed_line</span> <span class="ow">in</span> <span class="n">bed_kmer_pos</span><span class="p">:</span>
+                    <span class="n">line_out</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">bed_line</span><span class="p">]</span>
+                    <span class="n">line_out</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">line_out</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                    <span class="n">out_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">line_out</span><span class="p">)</span>
+                <span class="k">print</span> <span class="s2">&quot;Created data of </span><span class="si">%s</span><span class="s2"> at </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>\
+                    <span class="p">(</span><span class="n">cur_chr</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()))</span>
+            <span class="n">out_link</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">get_bed6</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uniquely_mappable</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span>
+                 <span class="n">STRAND</span><span class="p">,</span> <span class="n">uint_path</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make BED6 from a binary vector</span>
+
+<span class="sd">        Converts a binary vector with the same length</span>
+<span class="sd">        as the chromosome to a BED6 file. Each 1</span>
+<span class="sd">        entry in the binary file indicates that the</span>
+<span class="sd">        k-mer starting at that position and ending at</span>
+<span class="sd">        k nucleotides downstream is uniquely mappable.</span>
+<span class="sd">        Thus the BED6 would show any region in the genome</span>
+<span class="sd">        that is uniquely mappable by at least one k-mer.</span>
+
+<span class="sd">        :param uniquely_mappable: numpy binary array (0 or 1 values)</span>
+<span class="sd">        :param kmer: Integer scalar showing read length (k-mer)</span>
+<span class="sd">        :param STRAND: Strand that will be saved to the BED6</span>
+<span class="sd">        :param uint_path: Path of the uint8 array that was used</span>
+<span class="sd">        :param cur_chr: Chromosome name the the data is from</span>
+
+<span class="sd">        :returns: A numpy string array with BED6 information</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">unimap_diff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">)</span>
+        <span class="n">poses_start</span><span class="p">,</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">unimap_diff</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">poses_end</span><span class="p">,</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">unimap_diff</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_end</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_end</span><span class="p">):</span>
+                <span class="n">poses_end</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poses_end</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">)])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">poses_start</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">poses_start</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">uniquely_mappable</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">poses_start</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">poses_start</span><span class="p">)</span>
+            <span class="n">poses_end</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poses_end</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">)])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;Found no uniquely mappable reads for {}!&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">uint_path</span><span class="p">))</span>
+            <span class="n">bed_kmer_pos</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">chr_length</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chrsize_dict</span><span class="p">[</span><span class="n">cur_chr</span><span class="p">]</span>
+            <span class="n">bed_kmer_pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">),</span> <span class="mi">6</span><span class="p">),</span>
+                                    <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;S16&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">ind_st</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)):</span>
+                <span class="n">ad_ar</span> <span class="o">=</span> <span class="p">[</span><span class="n">cur_chr</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">poses_start</span><span class="p">[</span><span class="n">ind_st</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+                         <span class="nb">str</span><span class="p">(</span><span class="n">poses_end</span><span class="p">[</span><span class="n">ind_st</span><span class="p">]</span> <span class="o">+</span> <span class="n">kmer</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+                         <span class="s2">&quot;k&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">kmer</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">poses_end</span><span class="p">[</span><span class="n">ind_st</span><span class="p">]</span> <span class="o">+</span> <span class="n">kmer</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&gt;</span> <span class="n">chr_length</span><span class="p">:</span>
+                    <span class="n">ad_ar</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">chr_length</span>
+            <span class="n">bed_kmer_pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[[</span><span class="n">cur_chr</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">poses_start</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">poses_end</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">kmer</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+                  <span class="s2">&quot;k&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">kmer</span><span class="p">),</span>
+                  <span class="mi">1</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">))],</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;S64&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">bed_kmer_pos</span>
+
+    <span class="k">def</span> <span class="nf">load_uint_ar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uint_path</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Loads a gzipped unsigned 8-bit integer as a numpy array</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">uint_link</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">uint_path</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span>
+        <span class="n">uint_ar</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">uint_link</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">uint_link</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">print</span> <span class="s2">&quot;Processing {} for {} {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">uint_path</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">cur_chr</span><span class="p">)</span>
+        <span class="n">less_than_kmer</span> <span class="o">=</span> <span class="n">uint_ar</span> <span class="o">&lt;=</span> <span class="n">kmer</span>
+        <span class="n">not_zero</span> <span class="o">=</span> <span class="n">uint_ar</span> <span class="o">!=</span> <span class="mi">0</span>
+        <span class="n">uniquely_mappable</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">less_than_kmer</span><span class="p">,</span> <span class="n">not_zero</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">uniquely_mappable</span>
+
+    <span class="k">def</span> <span class="nf">make_header</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="nb">type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Created BED6 header</span>
+
+<span class="sd">        :param str kmer: k&lt;integer&gt;</span>
+<span class="sd">        :param type: One of Bismap.Forward, Bismap.Reverse or Umap</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dict_col</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Bisulfite.Converted&quot;</span><span class="p">:</span> <span class="s2">&quot;240,40,80&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Umap&quot;</span><span class="p">:</span> <span class="s2">&quot;80,40,240&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Bismap.Forward&quot;</span><span class="p">:</span> <span class="s2">&quot;220,20,80&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;Bismap.Reverse&quot;</span><span class="p">:</span> <span class="s2">&quot;80,20,220&quot;</span><span class="p">}</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="s1">&#39;track name=&quot;{} {}&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="n">kmer</span><span class="p">)</span> <span class="o">+</span>\
+            <span class="s1">&#39;description=&quot;Single-read mappability with {}-mers&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">kmer</span><span class="p">)</span> <span class="o">+</span>\
+            <span class="s1">&#39;color=</span><span class="si">%s</span><span class="s1"> </span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dict_col</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">type</span><span class="p">,</span> <span class="s2">&quot;40,40,240&quot;</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">header</span>
+
+    <span class="k">def</span> <span class="nf">make_chrsize_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates dictionary from 2-column chromosome size file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chrsize_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chrsize_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">chrsize_link</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">each_line</span> <span class="ow">in</span> <span class="n">chrsize_link</span><span class="p">:</span>
+                <span class="nb">chr</span> <span class="o">=</span> <span class="n">each_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">length</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">each_line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">chrsize_dict</span><span class="p">[</span><span class="nb">chr</span><span class="p">]</span> <span class="o">=</span> <span class="n">length</span>
+        <span class="k">return</span> <span class="n">chrsize_dict</span>
+
+    <span class="k">def</span> <span class="nf">bin_arr_to_wig</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uniquely_mappable</span><span class="p">,</span> <span class="n">kmer</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Converts a uniquely a binary array to mult-read mappability</span>
+
+<span class="sd">        Unique mappability array is a binary array where each</span>
+<span class="sd">        value of 1 indicates that the k-mer starting at that</span>
+<span class="sd">        position is uniquely mappable. This function generates</span>
+<span class="sd">        an array of the same length and saves the multi-read mappability</span>
+<span class="sd">        of each position in that array. Multi-read mappability is the</span>
+<span class="sd">        probability of finding a uniquely mappable k-mer among all of</span>
+<span class="sd">        the k-mers that overlap with a given position.</span>
+
+<span class="sd">        :param uniquely_mappable: A binary numpy array</span>
+<span class="sd">        :param kmer: An integer defining read length</span>
+
+<span class="sd">        :returns: Multi-read mappability array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">LEN_AR</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">)</span>
+        <span class="n">poses_start</span><span class="p">,</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">uniquely_mappable</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">ar_quant</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ind_st</span> <span class="ow">in</span> <span class="n">poses_start</span><span class="p">:</span>
+            <span class="n">ind_end</span> <span class="o">=</span> <span class="n">ind_st</span> <span class="o">+</span> <span class="n">kmer</span>
+            <span class="k">if</span> <span class="n">ind_end</span> <span class="o">&gt;</span> <span class="n">LEN_AR</span><span class="p">:</span>
+                <span class="n">ind_end</span> <span class="o">=</span> <span class="n">LEN_AR</span>
+            <span class="n">ar_quant</span><span class="p">[</span><span class="n">ind_st</span><span class="p">:</span><span class="n">ind_end</span><span class="p">]</span> <span class="o">=</span> <span class="n">ar_quant</span><span class="p">[</span><span class="n">ind_st</span><span class="p">:</span><span class="n">ind_end</span><span class="p">]</span> <span class="o">+</span> <span class="mf">1.0</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Finished generating multi-read mappability date at {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())))</span>
+        <span class="k">del</span> <span class="n">poses_start</span>
+        <span class="n">ar_quant</span> <span class="o">=</span> <span class="n">ar_quant</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">kmer</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ar_quant</span>
+
+<div class="viewcode-block" id="Int8Handler.write_as_wig"><a class="viewcode-back" href="../../documentation.html#umap.Int8Handler.write_as_wig">[docs]</a>    <span class="k">def</span> <span class="nf">write_as_wig</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uint_path</span><span class="p">,</span> <span class="n">out_path</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">chrom</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;unsigned 8-bit integer array file to wiggle</span>
+
+<span class="sd">        For a given numeric unsigned 8-bit integer vector that</span>
+<span class="sd">        is generated by Umap, this method save the wiggle file</span>
+<span class="sd">        which is specific for one chromosome over one read length.</span>
+
+<span class="sd">        :param uint_path: Path to a gzipped numeric unsigned 8-bit array</span>
+<span class="sd">        :param out_path: Gzipped path for saving wiggle</span>
+<span class="sd">        :param kmer: Integer defining read length</span>
+<span class="sd">        :param chrom: Chromosome that the uint_path is specific to</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">uniquely_mappable</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_uint_ar</span><span class="p">(</span><span class="n">uint_path</span><span class="p">,</span> <span class="n">kmer</span><span class="p">,</span> <span class="n">chrom</span><span class="p">)</span>
+        <span class="n">ar_quant</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bin_arr_to_wig</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">,</span> <span class="n">kmer</span><span class="p">)</span>
+        <span class="n">out_link</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">out_path</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span>
+        <span class="n">unimap_diff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ar_quant</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">))</span>
+        <span class="n">poses_start</span><span class="p">,</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">unimap_diff</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">poses_end</span><span class="p">,</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">unimap_diff</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_end</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">poses_end</span><span class="p">):</span>
+                <span class="n">poses_end</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poses_end</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">)])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">poses_start</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">poses_start</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">uniquely_mappable</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">poses_start</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">poses_start</span><span class="p">)</span>
+            <span class="n">poses_end</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">poses_end</span><span class="p">,</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">uniquely_mappable</span><span class="p">)])</span>
+        <span class="k">for</span> <span class="n">ind_st</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">poses_start</span><span class="p">)):</span>
+            <span class="n">pos_st</span> <span class="o">=</span> <span class="n">poses_start</span><span class="p">[</span><span class="n">ind_st</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">pos_end</span> <span class="o">=</span> <span class="n">poses_end</span><span class="p">[</span><span class="n">ind_st</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">start_line</span> <span class="o">=</span> <span class="s2">&quot;fixedStep chrom={} start={} step=1 span=1</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">chrom</span><span class="p">,</span> <span class="n">pos_st</span><span class="p">)</span>
+            <span class="n">out_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">start_line</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">each_pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pos_st</span><span class="p">,</span> <span class="n">pos_end</span><span class="p">):</span>
+                <span class="n">out_link</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ar_quant</span><span class="p">[</span><span class="n">each_pos</span><span class="p">])</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span>
+            <span class="s2">&quot;Finished saving the data to {} at {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">out_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())))</span>
+        <span class="n">out_link</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div></div>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Converts</span><span class="se">\</span>
+<span class="s2">    unionized uint8 outputs of umap/ubismap to bed files&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;in_dir&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;folder with &lt;chrom&gt;.uint8.unique.gz files&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;out_dir&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Folder for writing the output files&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;out_label&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;File names would be kmer.&lt;out_label&gt;.bed.gz&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-C2T&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If using converted genomes specify</span><span class="se">\</span>
+<span class="s2">                        -C2T or -G2A&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-G2A&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If using converted genomes specify</span><span class="se">\</span>
+<span class="s2">                        -C2T or -G2A&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-chrsize_path&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="s2">&quot;../../chrsize.tsv&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to a 2 column file of chromosome and length.</span><span class="se">\</span>
+<span class="s2">                        By default it goes to ../../chrsize.tsv from</span><span class="se">\</span>
+<span class="s2">                        out_dir&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-WriteUnique&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;If -Bismap is true and want to store the merged</span><span class="se">\</span>
+<span class="s2">                        uint file, specify this option&quot;</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">out_dir</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">out_dir</span><span class="p">)</span>
+    <span class="n">FileHandler</span> <span class="o">=</span> <span class="n">Int8Handler</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">in_dir</span><span class="p">,</span>
+                              <span class="n">args</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">C2T</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">G2A</span><span class="p">,</span>
+                              <span class="n">args</span><span class="o">.</span><span class="n">chrsize_path</span><span class="p">)</span>
+    <span class="n">kmers</span> <span class="o">=</span> <span class="n">FileHandler</span><span class="o">.</span><span class="n">kmers</span>
+    <span class="c1"># for kmer in kmers:</span>
+    <span class="k">for</span> <span class="n">kmer</span> <span class="ow">in</span> <span class="n">kmers</span><span class="p">:</span>
+        <span class="n">FileHandler</span><span class="o">.</span><span class="n">write_beds</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">out_label</span><span class="p">,</span>
+                               <span class="n">kmer</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">WriteUnique</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">chrom</span> <span class="ow">in</span> <span class="n">FileHandler</span><span class="o">.</span><span class="n">chroms</span><span class="p">:</span>
+            <span class="n">out_path</span> <span class="o">=</span> <span class="s2">&quot;{}/{}.{}.{}.MultiReadMappability.wg.gz&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">out_label</span><span class="p">,</span> <span class="n">chrom</span><span class="p">,</span> <span class="n">kmer</span><span class="p">)</span>
+            <span class="n">uint_path</span> <span class="o">=</span> <span class="s2">&quot;{}/{}.uint8.unique.gz&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">chrom</span><span class="p">)</span>
+            <span class="n">kmer_num</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">kmer</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+            <span class="n">FileHandler</span><span class="o">.</span><span class="n">write_as_wig</span><span class="p">(</span><span class="n">uint_path</span><span class="p">,</span> <span class="n">out_path</span><span class="p">,</span> <span class="n">kmer_num</span><span class="p">,</span> <span class="n">chrom</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../documentation.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Mehran Karimzadeh, Carl Ernst, Anshul Kundaje, Michael M. Hoffman.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
