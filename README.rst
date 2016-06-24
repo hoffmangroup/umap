@@ -1,3 +1,7 @@
+.. image:: https://readthedocs.org/projects/umap/badge/?version=latest
+
+
+
 Umap and Bismap: quantifying genome and methylome mappability
 =============================================================
 
