@@ -180,3 +180,12 @@ the `Umap issue tracker <https://bitbucket.org/hoffmanlab/umap/issues>`_.
 We are interested in all comments on the package,
 and the ease of use of installation and documentation.
 
+
+Credits
+-------
+
+
+Umap was originally developed by Anshul Kundaje and was written in MATLAB.
+The original repository is available `here <https://sites.google.com/site/anshulkundaje/projects/mappability>`_.
+The version of Umap that is available in this repository, is a python reimplementation of the original Umap, and
+is initially written by Mehran Karimzadeh.
