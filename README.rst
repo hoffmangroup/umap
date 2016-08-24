@@ -128,11 +128,24 @@ Get *k*-mers
 .. autoclass:: GetKmers
 
 
+The first step of finding the mappability of the genome for a given read length,
+is to create all of the possible sequences of the genome with the read length of interest.
+GetKmers requires an index reference and an index ID to do this step for one chunk of
+the genome at a time. The index ID can be specified by -job_id, or if GetKmers is
+submitted as a job array, GetKmers will use the variable name set by -var_id to obtain
+the environmental variable for the job array ID.
+
+
 Run Bowtie
 ----------
 
 .. currentmodule:: run_bowtie
 .. autoclass:: BowtieWrapper
+
+
+When all of the possible *k*-mers of the genome are created, BowtieWrapper keeps record
+of all of the k-mers that are unique. Similar to GetKmers, the parallel process relies on
+an index reference, or -job_id.
 
 
 Merge bowtie outputs
@@ -143,12 +156,21 @@ Merge bowtie outputs
 .. autoclass:: UnifyBowtie
 
 
+For each *k*-mer file, there will be a bowtie file with information of unique *k*-mers.
+For each chromosome, a binary vector with length of the chromosome will be created.
+If a *k*-mer starting at a given position is unique, the value will be 1.
+
+
 Merge data of various *k*-mers
 ------------------------------
 
 
 .. currentmodule:: combine_umaps
 .. autoclass:: CombineUmaps
+
+If the above steps are repeated for various *k*-mers, these data can be efficiently
+stored in a numeric vector for each chromosome. For each position, the length of the smallest
+*k*-mer that uniquely maps to that position is specified.
 
 
 Convert numeric vectors to BED and Wiggle
@@ -159,6 +181,8 @@ Convert numeric vectors to BED and Wiggle
 .. autoclass:: Int8Handler
 .. method:: Int8Handler.write_beds
 .. method:: Int8Handler.write_as_wig
+
+To visualize binary and numeric vectors that are produced by Umap, you can use Int8Handler.
 
 
 Requesting Genomes

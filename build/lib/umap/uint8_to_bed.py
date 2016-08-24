@@ -48,6 +48,7 @@ class Int8Handler:
         self.chroms = [each_chr for each_chr in
                        self.chrsize_dict.keys() if
                        "RC" not in each_chr]
+        self.chroms.sort()
 
     def find_type(self):
         if self.C2T:
@@ -188,18 +189,19 @@ class Int8Handler:
             chr_length = self.chrsize_dict[cur_chr]
             bed_kmer_pos = np.empty(shape=(len(poses_start), 6),
                                     dtype="S16")
+            ind_high = []
             for ind_st in range(len(poses_start)):
-                ad_ar = [cur_chr, str(poses_start[ind_st] + 1),
-                         str(poses_end[ind_st] + kmer - 1),
-                         "k" + str(kmer), 1, STRAND]
                 if poses_end[ind_st] + kmer - 1 > chr_length:
-                    ad_ar[2] = chr_length
+                    ind_high.append(ind_st)
             bed_kmer_pos = np.array(
                 [[cur_chr, str(poses_start[i] + 1),
                   str(poses_end[i] + kmer - 1),
                   "k" + str(kmer),
                   1, STRAND] for i in range(len(poses_start))],
                 dtype="S64")
+            for each_ind in ind_high:
+                if int(bed_kmer_pos[each_ind][2]) > chr_length:
+                    bed_kmer_pos[each_ind][2] = str(chr_length)
         return bed_kmer_pos
 
     def load_uint_ar(self, uint_path, kmer, cur_chr):
@@ -316,44 +318,99 @@ class Int8Handler:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Converts\
     unionized uint8 outputs of umap/ubismap to bed files")
-    parser.add_argument("in_dir",
-                        help="folder with <chrom>.uint8.unique.gz files")
-    parser.add_argument("out_dir",
-                        help="Folder for writing the output files")
-    parser.add_argument("out_label",
-                        help="File names would be kmer.<out_label>.bed.gz")
-    parser.add_argument("-C2T",
-                        action="store_true",
-                        help="If using converted genomes specify\
-                        -C2T or -G2A")
-    parser.add_argument("-G2A",
-                        action="store_true",
-                        help="If using converted genomes specify\
-                        -C2T or -G2A")
-    parser.add_argument("-chrsize_path",
-                        default="../../chrsize.tsv",
-                        help="Path to a 2 column file of chromosome and length.\
-                        By default it goes to ../../chrsize.tsv from\
-                        out_dir")
-    parser.add_argument("-WriteUnique",
-                        action="store_true",
-                        help="If -Bismap is true and want to store the merged\
-                        uint file, specify this option")
+    parser.add_argument(
+        "in_dir",
+        help="folder with <chrom>.uint8.unique.gz files")
+    parser.add_argument(
+        "out_dir",
+        help="Folder for writing the output files")
+    parser.add_argument(
+        "out_label",
+        help="File names would be kmer.<out_label>.bed.gz")
+    parser.add_argument(
+        "-C2T",
+        action="store_true",
+        help="If using converted genomes specify -C2T or -G2A")
+    parser.add_argument(
+        "-G2A",
+        action="store_true",
+        help="If using converted genomes specify -C2T or -G2A")
+    parser.add_argument(
+        "-chrsize_path",
+        default="../../chrsize.tsv",
+        help="Path to a 2 column file of chromosome and length. "
+        "By default it goes to ../../chrsize.tsv from out_dir")
+    parser.add_argument(
+        "-WriteUnique",
+        action="store_true",
+        help="If -Bismap is true and want to store the merged "
+        "uint file, specify this option")
+    parser.add_argument(
+        "-wiggle",
+        action="store_true",
+        help="If specified, will generate wiggle files "
+        "for each chromosome. Make sure to specify -job_id "
+        "or run in job array for parallel computation.")
+    parser.add_argument(
+        "-bed",
+        action="store_true",
+        help="If specified, will generate bed files that specify "
+        "all of the regions in the genome that are uniquely mappable "
+        "by each of the k-mers")
+    parser.add_argument(
+        "-job_id",
+        type=int,
+        default=0,
+        help="If not using job array, specify this index "
+        "which will be used for selecting the chromosomes")
+    parser.add_argument(
+        "-var_id",
+        default="SGE_TASK_ID",
+        help="Environmental variable for finding chromosome indices")
     args = parser.parse_args()
+    if not args.bed and not args.wiggle:
+        raise ValueError("Please specify only one of -bed or -wiggle")
+    if args.bed and args.wiggle:
+        raise ValueError("Please specify at least one of -bed or -wiggle")
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
     FileHandler = Int8Handler(args.in_dir,
                               args.out_dir, args.C2T, args.G2A,
                               args.chrsize_path)
+    job_id = args.job_id
+    PARALLEL = True
+    if job_id == 0:
+        job_id = os.environ[args.var_id]
+        if job_id == "":
+            PARALLEL = False
     kmers = FileHandler.kmers
     # for kmer in kmers:
     for kmer in kmers:
-        FileHandler.write_beds(args.out_label,
-                               kmer, args.WriteUnique)
-        for chrom in FileHandler.chroms:
+        if args.bed:
+            print("Creating BED file")
+            FileHandler.write_beds(args.out_label,
+                                   kmer, args.WriteUnique)
+        elif PARALLEL and args.wiggle:
+            chrom = FileHandler.chroms[int(job_id) - 1]
+            print(
+                "Saving Wiggle using job id {}, selected {}".format(
+                    job_id, chrom))
             out_path = "{}/{}.{}.{}.MultiReadMappability.wg.gz".format(
                 args.out_dir, args.out_label, chrom, kmer)
             uint_path = "{}/{}.uint8.unique.gz".format(
                 args.in_dir, chrom)
             kmer_num = int(kmer.replace("k", ""))
             FileHandler.write_as_wig(uint_path, out_path, kmer_num, chrom)
+        elif args.wiggle:
+            print("Creating wiggles for all chromosomes consequently")
+            print("This may take long...")
+            for chrom in FileHandler.chroms:
+                out_path = "{}/{}.{}.{}.MultiReadMappability.wg.gz".format(
+                    args.out_dir, args.out_label, chrom, kmer)
+                uint_path = "{}/{}.uint8.unique.gz".format(
+                    args.in_dir, chrom)
+                kmer_num = int(kmer.replace("k", ""))
+                FileHandler.write_as_wig(uint_path, out_path, kmer_num, chrom)
+                print(
+                    "Tired of waiting? Try parallel processing "
+                    "by specifying -job_id")

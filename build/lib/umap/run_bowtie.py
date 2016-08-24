@@ -17,7 +17,7 @@ def subset_list(list_items, regex):
 class BowtieWrapper:
     def __init__(self, kmer_dir, bowtie_dir,
                  index_dir, index_name,
-                 job_id):
+                 job_id, Bismap):
         """Runs Bowtie one <chrom>.<kmer>.<jobid>.kmer.gz
 
         Using the job_id, this function identifies
@@ -29,6 +29,7 @@ class BowtieWrapper:
         :param index_dir: Directory with Bowtie index
         :param index_name: Name used for generating Bowtie index files
         :param int job_id: will be used for finding kmer.gz file
+        :param bool Bismap: Run bowtie with --norc
 
         :returns: Saves the output to a file in the same directory as kmer_dir
         """
@@ -37,6 +38,7 @@ class BowtieWrapper:
         self.index_dir = index_dir
         self.index_name = index_name
         self.job_id = job_id
+        self.Bismap = Bismap
         self.execute_bowtie_command()
 
     def execute_bowtie_command(self):
@@ -46,6 +48,10 @@ class BowtieWrapper:
 
         :raises ValueError: If job_id is out of expected range
         """
+        if self.Bismap:
+            rev_comp = " --norc "
+        else:
+            rev_comp = ""
         kmer_names = ["{}/{}".format(self.kmer_dir, each_kmer) for each_kmer
                       in subset_list(os.listdir(self.kmer_dir), ".kmer.gz$")]
         kmer_names.sort()
@@ -73,7 +79,7 @@ class BowtieWrapper:
                     "--large-index "
             bowtiecmd = first_part_of_command +\
                 "{}/{} ".format(self.index_dir, self.index_name) +\
-                "-v 0 -k 1 -m 1 --norc --mm " +\
+                "-v 0 -k 1 -m 1 {}--mm ".format(rev_comp) +\
                 "-r --refidx --suppress 5,6,7,8 - " +\
                 "| gzip -c > {}".format(bowtie_out_path)
             subprocess.call(bowtiecmd, shell=True)
@@ -100,6 +106,10 @@ if __name__ == "__main__":
         "index_name",
         help="prefix name of bowtie index")
     parser.add_argument(
+        "-Bismap",
+        action="store_true",
+        help="Run bowtie with --norc")
+    parser.add_argument(
         "-var_id",
         default="SGE_TASK_ID",
         help="HPC environmental variable for JOB ID")
@@ -113,4 +123,5 @@ if __name__ == "__main__":
     if job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1
     BowtieWrapper(args.kmer_dir, args.bowtie_dir,
-                  args.index_dir, args.index_name, job_id)
+                  args.index_dir, args.index_name, job_id,
+                  args.Bismap)

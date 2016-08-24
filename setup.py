@@ -11,7 +11,7 @@ def readme():
 
 
 setup(name='umap',
-      version='0.1',
+      version='0.1.1',
       description=DESCRIPTION,
       long_description=readme(),
       classifiers=[
@@ -20,12 +20,14 @@ setup(name='umap',
         "Intended Audience :: Science/Research",
         "Operating System :: Unix",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2.7"],
+        "Programming Language :: Python :: 2.7",
+        "License :: OSI Approved :: GNU General Public License v3 ",
+        "(GPLv3)"],
       url='https://bitbucket.org/hoffmanlab/proj/bismap',
       author="Mehran Karimzadeh, Carl Ernst, " +
       "Anshul Kundaje, Michael M. Hoffman",
       author_email='mehran.karimzadeh@uhnresearch.ca',
-      license='MIT',
+      license='GPLv3',
       packages=['umap'],
       install_requires=[
           "argparse",

@@ -52,24 +52,24 @@ class ArgHandler:
             "there already exists a /chrs and /genome subdirectory "
             "where genome directory has a genome.fasta "
             "with bowtie index suffix as 'BisMap_bowtie.ind' or "
-            "'Umap_bowtie.ind' if --BisMap is not specified and "
+            "'Umap_bowtie.ind' if --Bismap is not specified and "
             "the ./chrs directory has indivudal chromosome "
             "FASTA files, specify this option")
         parser.add_argument(
-            "-BisMap",
+            "-Bismap",
             action="store_true",
-            help="Specify --BisMap if double genome indexing is expected. "
+            help="Specify --Bismap if double genome indexing is expected. "
             "This would create a genome that is concatenation of forward "
             "and reverse complement. If -C2T or -G2A is expected, "
             "this must be specified")
         parser.add_argument(
             "-C2T",
             action="store_true",
-            help="If --BisMap is provided, specify --C2T or --G2A")
+            help="If --Bismap is provided, specify --C2T or --G2A")
         parser.add_argument(
             "-G2A",
             action="store_true",
-            help="If --BisMap is provided, specify --C2T or --G2A")
+            help="If --Bismap is provided, specify --C2T or --G2A")
         parser.add_argument(
             "-ExitAfterIndexing",
             action="store_true",
@@ -125,7 +125,7 @@ class ArgHandler:
             conversion = "C2T"
         elif args.G2A:
             conversion = "G2A"
-        if args.BisMap:
+        if args.Bismap:
             # It is possible that chrx_RC information does not exist
             # in the chrsize.tsv file. The function below would check
             # and add this information if necessary and would update
@@ -143,7 +143,7 @@ class ArgHandler:
         self.out_dir = out_dir
         self.chr_ind_path = chr_ind_path
         self.conversion = conversion
-        self.BisMap = args.BisMap
+        self.Bismap = args.Bismap
         self.queue_name = args.queue_name
         self.kmers = args.kmers
         self.SimultaneousJobs = args.SimultaneousJobs
@@ -181,9 +181,9 @@ def pipe_job(job_list):
 
 
 def index_genome(queue_name, converted_path,
-                 bowtie_build_path, BisMap, write_path, pipe):
+                 bowtie_build_path, Bismap, write_path, pipe):
     path_genome = "{}/genome.fa".format(converted_path)
-    if BisMap:
+    if Bismap:
         index_suffix = "BisMap_bowtie.ind"
     else:
         index_suffix = "Umap_bowtie.ind"
@@ -248,7 +248,7 @@ def make_unique_kmers(chrom_dir, dir_kmers,
     get_kmers = ["qsub", "-q",
                  queue_name, "-t",
                  array_param, "-N",
-                 "BisMap.UniqueKmers",
+                 "Bismap.UniqueKmers",
                  "-terse",
                  "-tc", str(job_lim),
                  "-hold_jid", conversion_job_id,
@@ -277,7 +277,7 @@ def make_unique_kmers(chrom_dir, dir_kmers,
 def run_bowtie(queue_name, dir_kmers, bowtie_path, index_dir,
                index_suffix, kmer_job_id,
                index_job_id, kmer, source_dir,
-               BisMap, num_jobs, write_path, var_id,
+               Bismap, num_jobs, write_path, var_id,
                job_lim, pipe):
     """Calls bowtie on kmer.gz files
     """
@@ -288,7 +288,7 @@ def run_bowtie(queue_name, dir_kmers, bowtie_path, index_dir,
     run_bowtie = ["qsub", "-q",
                   queue_name, "-t",
                   array_param, "-N",
-                  "BisMap.RunBowtie",
+                  "Bismap.RunBowtie",
                   "-terse",
                   "-tc", str(job_lim),
                   "-hold_jid", wait_param,
@@ -299,6 +299,8 @@ def run_bowtie(queue_name, dir_kmers, bowtie_path, index_dir,
                   "python", "run_bowtie.py", kmer_folder,
                   bowtie_dir, index_dir, index_suffix,
                   "-var_id", var_id]
+    if Bismap:
+        run_bowtie.append("-Bismap")
     if pipe:
         run_bowtie = pipe_job(run_bowtie)
     if write_path != "False":
@@ -333,7 +335,7 @@ def unify_bowtie(queue_name, bowtie_job_id, dir_kmers,
                     queue_name,
                     "-t", array_param,
                     "-N",
-                    "BisMap.UnifyBowtie",
+                    "Bismap.UnifyBowtie",
                     "-terse",
                     "-tc", str(job_lim),
                     "-hold_jid", wait_param,
@@ -470,7 +472,7 @@ def complement_chrsize_file(chrsize_path):
 
 
 def process_genome(GenomeReady, genome_path,
-                   BisMap, fasta_path,
+                   Bismap, fasta_path,
                    conversion, out_dir, chr_dir,
                    queue_name, bowtie_path,
                    chrsize_path, write_script, pipe):
@@ -484,7 +486,7 @@ def process_genome(GenomeReady, genome_path,
 
     :param GenomeRead: Boolean indicating if index of genome exists
     :param genome_path: Path to the output fasta file of the genome
-    :param BisMap: Boolean indicating if BisMap option is selected
+    :param Bismap: Boolean indicating if Bismap option is selected
     :param fasta_path: Path to the already existing input fasta file
     :param conversion: One of None, C2T or G2A
     :param out_dir: Directory for Umap output
@@ -504,8 +506,8 @@ def process_genome(GenomeReady, genome_path,
     else:
         print "Started copying/reverse complementing/converting"
         if not os.path.exists(genome_path):
-            if BisMap:
-                print "BisMap reverse complementation started\
+            if Bismap:
+                print "Bismap reverse complementation started\
                 at %s" % str(datetime.now())
                 FastaObj = FastaHandler(fasta_path, genome_path, chrsize_path,
                                         chr_dir, True, conversion)
@@ -514,14 +516,14 @@ def process_genome(GenomeReady, genome_path,
                 FastaObj = FastaHandler(fasta_path, genome_path, chrsize_path,
                                         chr_dir, False, "None")
             FastaObj.handle_fasta()
-        elif BisMap:
+        elif Bismap:
             print "Assuming that %s/genome/genome.fa includes reverse\
             complemented chromosomes." % out_dir
         print "Indexing the genome started at %s" % str(datetime.now())
         index_suffix, index_job_id = index_genome(
             queue_name,
             "{}/genome".format(out_dir),
-            bowtie_path, BisMap, write_script, pipe)
+            bowtie_path, Bismap, write_script, pipe)
         print "Done with indexing at %s" % str(datetime.now())
     return index_suffix, index_job_id
 
@@ -574,7 +576,7 @@ def index_unique_kmer_jobids(chrsize_path, CHUNK_SIZE=1e6):
 if __name__ == "__main__":
     args = ArgHandler()
     # genome_path, chrom_dir, dir_kmers, chrsize_path, out_dir = args_list[:5]
-    # chr_ind_path, conversion, BisMap, queue_name = args_list[5:9]
+    # chr_ind_path, conversion, Bismap, queue_name = args_list[5:9]
     # kmers, SimultaneousJobs, ExitAfterIndexing = args_list[9:12]
     # var_id, write_script, source_dir, GenomeReady = args_list[12:16]
     # fasta_path, bowtie_path, LenChrs, pipe = args_list[16:]
@@ -582,7 +584,7 @@ if __name__ == "__main__":
     conversion_job_id = "1"  # initiate job dependency with an invalid ID
     index_suffix, index_job_id = process_genome(
         args.GenomeReady, args.genome_path,
-        args.BisMap, args.fasta_path,
+        args.Bismap, args.fasta_path,
         args.conversion, args.out_dir,
         args.chrom_dir, args.queue_name,
         args.bowtie_path, args.chrsize_path,
@@ -606,7 +608,7 @@ if __name__ == "__main__":
                 args.bowtie_path,
                 index_dir, index_suffix,
                 kmer_job_id, index_job_id, kmer,
-                args.source_dir, args.BisMap,
+                args.source_dir, args.Bismap,
                 num_jobs, args.write_script, args.var_id,
                 args.SimultaneousJobs, args.pipe)
             bowtie_unify_id = unify_bowtie(

@@ -1,12 +1,16 @@
 Metadata-Version: 1.1
 Name: umap
-Version: 0.1
+Version: 0.1.1
 Summary: Umap and Bismap: tools for genome and methylome mappability
-Home-page: https://bitbucket.org/hoffmanlab/ubismap
-Author: Mehran Karimzadeh, Anshul Kundaje
+Home-page: https://bitbucket.org/hoffmanlab/proj/bismap
+Author: Mehran Karimzadeh, Carl Ernst, Anshul Kundaje, Michael M. Hoffman
 Author-email: mehran.karimzadeh@uhnresearch.ca
-License: MIT
-Description: Umap and Bismap: quantifying genome and methylome mappability
+License: GPLv3
+Description: .. image:: https://readthedocs.org/projects/umap/badge/?version=latest
+        
+        
+        
+        Umap and Bismap: quantifying genome and methylome mappability
         =============================================================
         
         
@@ -50,10 +54,10 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         
         Bismap requires special handling of reverse complementation of C :math:`\rightarrow` T
         or G :math:`\rightarrow` A converted genomes.
-        Conversion of C :math:`\rightarrow` T on the sequence AATTCCGG produces AATTTTGG.
+        Conversion of C :math:`\rightarrow` T on the sequence AATTCCGG produces AATT **TT** GG.
         In the Bowtie index, the reverse complement would be CCAAAATT.
         However for the purpose of identifying the mappability of the bisulfite-converted genome,
-        we expect the reverse complement to be TTGGAATT. The reason is that both forward and reverse
+        we expect the reverse complement to be TTGGAA **TT**. The reason is that both forward and reverse
         strands undergo bisulfite treatment simultaneously. There is no DNA replication after bisulfite treatment.
         To handle this issue, Bismap creates its own reverse complemented chromosomes and suppresses Bowtie's usual reverse complement mapping.
         
@@ -98,8 +102,8 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         Umap uses mercurial version control. Make sure that mercurial (hg) is installed.
         Download Umap to the directory of your python packages using::
         
-            hg clone https://bitbucket.org/hoffmanlab/ubismap
-            cd ubismap
+            hg clone https://bitbucket.org/hoffmanlab/umap
+            cd umap
             python setup.py install
         
         
@@ -116,7 +120,7 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         However, all of the Umap modules accept *-job_id* which allows you to use the modules without a cluster or if
         your cluster does not support job arrays.
         
-        Basically, the job array saves an environmental variable (defined by (-var_id*) that Umap uses for paralellizing processes.
+        Basically, the job array saves an environmental variable (defined by (*-var_id*) that Umap uses for paralellizing processes.
         You can run the modules in a for loop and set the *-job_id* manually.
         For example, in order to find *k*-mers of a genome with 10 million base pairs, the get_kmers
         and run_bowtie modules each need to be executed with -job_ids ranging between 1 to 10.
@@ -132,11 +136,24 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         .. autoclass:: GetKmers
         
         
+        The first step of finding the mappability of the genome for a given read length,
+        is to create all of the possible sequences of the genome with the read length of interest.
+        GetKmers requires an index reference and an index ID to do this step for one chunk of
+        the genome at a time. The index ID can be specified by -job_id, or if GetKmers is
+        submitted as a job array, GetKmers will use the variable name set by -var_id to obtain
+        the environmental variable for the job array ID.
+        
+        
         Run Bowtie
         ----------
         
         .. currentmodule:: run_bowtie
         .. autoclass:: BowtieWrapper
+        
+        
+        When all of the possible *k*-mers of the genome are created, BowtieWrapper keeps record
+        of all of the k-mers that are unique. Similar to GetKmers, the parallel process relies on
+        an index reference, or -job_id.
         
         
         Merge bowtie outputs
@@ -147,12 +164,21 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         .. autoclass:: UnifyBowtie
         
         
+        For each *k*-mer file, there will be a bowtie file with information of unique *k*-mers.
+        For each chromosome, a binary vector with length of the chromosome will be created.
+        If a *k*-mer starting at a given position is unique, the value will be 1.
+        
+        
         Merge data of various *k*-mers
         ------------------------------
         
         
         .. currentmodule:: combine_umaps
         .. autoclass:: CombineUmaps
+        
+        If the above steps are repeated for various *k*-mers, these data can be efficiently
+        stored in a numeric vector for each chromosome. For each position, the length of the smallest
+        *k*-mer that uniquely maps to that position is specified.
         
         
         Convert numeric vectors to BED and Wiggle
@@ -161,9 +187,10 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         
         .. currentmodule:: uint8_to_bed
         .. autoclass:: Int8Handler
-            .. method:: write_beds
+        .. method:: Int8Handler.write_beds
+        .. method:: Int8Handler.write_as_wig
         
-            .. method:: write_as_wig
+        To visualize binary and numeric vectors that are produced by Umap, you can use Int8Handler.
         
         
         Requesting Genomes
@@ -178,13 +205,29 @@ Description: Umap and Bismap: quantifying genome and methylome mappability
         Contact, support and questions
         ------------------------------
         
-        For support of Umap, please user our `mailing list <https://groups.google.com/forum/#!forum/ubismap`_.
+        For support of Umap, please user our `mailing list <https://groups.google.com/forum/#!forum/ubismap>`_.
         Specifically, if you want to report a bug or request a feature,
         please do so using
-        the `Umap issue tracker <https://bitbucket.org/hoffmanlab/ubismap/issues`_.
+        the `Umap issue tracker <https://bitbucket.org/hoffmanlab/umap/issues>`_.
         We are interested in all comments on the package,
         and the ease of use of installation and documentation.
         
         
+        Credits
+        -------
+        
+        
+        Umap was originally developed by Anshul Kundaje and was written in MATLAB.
+        The original repository is available `here <https://sites.google.com/site/anshulkundaje/projects/mappability>`_.
+        The version of Umap that is available in this repository, is a python reimplementation of the original Umap, and
+        is initially written by Mehran Karimzadeh.
+        
 Platform: UNKNOWN
+Classifier: Natural Language :: English
 Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Intended Audience :: Science/Research
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: License :: OSI Approved :: GNU General Public License v3 
+Classifier: (GPLv3)
