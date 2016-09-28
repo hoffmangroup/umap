@@ -13,7 +13,7 @@ def get_args():
         "megabase of the genome for this purpose. "
         "If not using job arrays, specify -job_id manually.")
     parser.add_argument(
-        "chrsize_path",
+        "chromsize_path",
         help="Path to 2 column tsv file where first column is "
         "chromosome name and second column is chromosome size")
     parser.add_argument(
@@ -21,7 +21,15 @@ def get_args():
         help="Path to the directory for creating "
         "<chromosome>.<Megabase>.<kmer>.kmer.gz files")
     parser.add_argument(
-        "kmer",
+        "chr_dir",
+        help="Path to directory with <chromosome>.fasta files.")
+    parser.add_argument(
+        "idx_path",
+        help="Path to the 4 column file with the following columns: "
+        "Index | Chromosome | Start | End. This file will be used "
+        "for identifying the chunk of the chromosome.")
+    parser.add_argument(
+        "--kmer",
         default="infer",
         help="The software would infer it based on the "
         "name of the 'out_dir'. If it is set and "
@@ -29,16 +37,13 @@ def get_args():
         "under out_dir will be created named 'kmer' and "
         "out_dir will be changed to that.")
     parser.add_argument(
-        "chr_dir",
-        help="Path to directory with <chromosome>.fasta files.")
-    parser.add_argument(
-        "-job_id",
+        "--job_id",
         default=0,
         type=int,
         help="If not submitted in job array, would require this "
         "parameter to be set. (1-based index)")
     parser.add_argument(
-        "-var_id",
+        "--var_id",
         default="SGE_TASK_ID",
         help="The variable name that the script would use "
         "for identifying the job id. By default: SGE_TASK_ID.")
@@ -54,14 +59,15 @@ def get_args():
         out_dir = "{}/{}".format(out_dir, kmer)
     if job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1
-    out_list = [args.chrsize_path, out_dir,
-                kmer, job_id, args.chr_dir]
+    out_list = [args.chromsize_path, out_dir,
+                kmer, job_id, args.chr_dir,
+                args.idx_path]
     return out_list
 
 
 class GetKmers:
     def __init__(self, out_dir, kmer, job_id,
-                 chr_dir, chrsize_path):
+                 chr_dir, chromsize_path, idx_path):
         """Creates all the possible k-mers for part of the genome.
 
         Used a referece file to find the appropriate chromosome,
@@ -73,7 +79,8 @@ class GetKmers:
         :param str kmer: k-mer string such as 'k24'
         :param int job_id: Reference ID used for finding chrom, start and end
         :param chr_dir: Path to directory with chromosome fasta files
-        :param chrsize_path: Path to 2 column file of chrom\tsize\n
+        :param chromsize_path: Path to 2 column file of chrom\tsize\n
+        :param idx_path: Path to 4 column file of index\tchrom\t\st\tend\n
 
         :returns: An object with methods such as get_step_fasta(),
             get_seq_ar(), write_kmers() and write_regions().
@@ -83,20 +90,23 @@ class GetKmers:
         self.out_dir = out_dir
         self.kmer = kmer
         self.job_id = job_id
-        self.chrsize_path = chrsize_path
+        self.chromsize_path = chromsize_path
         self.chr_dir = chr_dir
+        self.idx_path = idx_path
         self.chrom, self.start, self.end = self.get_region()
-        self.chr_path = "{}/{}.fasta".format(
+        self.chrom_path = "{}/{}.fasta".format(
             self.chr_dir, self.chrom)
-        if not os.path.exists(self.chr_path):
-            self.chr_path = self.chr_path.replace(".fasta", ".fa")
-            if not os.path.exists(self.chr_path):
-                raise ValueError("{} does not exist".format(self.chr_path))
+        if not os.path.exists(self.chrom_path):
+            raise ValueError(
+                "{} does not exist".format(self.chrom_path))
+        elif not os.path.exists(self.idx_path):
+            raise ValueError(
+                "{} does not exist".format(self.idx_path))
 
     def get_region(self):
         """Find chromosomal chunk
 
-        Using job_id and chrsize_path, finds chromosome,
+        Using job_id and chromsize_path, finds chromosome,
         start and end. Looks if chrsize_index.tsv exists.
         If it doesn't, it will create chrsize_index.tsv.
         Otherwise will use it for finding that information.
@@ -105,42 +115,14 @@ class GetKmers:
 
         :raises ValueError: If job_id is out of expected range
         """
-        chrsize_path = self.chrsize_path
         job_id = self.job_id
-        CHUNK_SIZE = int(1e6)
-        ind_path = "{}/chrsize_index.tsv".format(
-            "/".join(chrsize_path.split("/")[:-1]))
-        if os.path.exists(ind_path):
-            ind_df = pd.read_csv(ind_path, sep="\t", index_col=0)
-            dict_inds = ind_df.to_dict()
-        else:
-            ind_link = open(ind_path, "w")
-            ind_link.write("Index\tChromosome\tStart\tEnd\n")
-            start = 1
-            ind = 0
-            # Identifying chromosome, start, end for job_id
-            with open(chrsize_path, "r") as chrsize_link:
-                for chrsize_line in chrsize_link:
-                    chrom, len_chr = chrsize_line.rstrip().split("\t")
-                    end = int(len_chr) + start
-                    for pos in range(start, end, CHUNK_SIZE):
-                        if pos < end:
-                            if pos + CHUNK_SIZE - 1 > end:
-                                pos_end = end
-                            else:
-                                pos_end = pos + CHUNK_SIZE - 1
-                            ind_link.write(
-                                "\t".join([str(ind), chrom, str(pos),
-                                           str(int(pos_end))]) +
-                                "\n")
-                            ind = ind + 1
-            ind_link.close()
-            ind_df = pd.read_csv(ind_path, sep="\t", index_col=0)
-            dict_inds = ind_df.to_dict()
+        idx_path = self.idx_path
+        idx_df = pd.read_csv(idx_path, sep="\t", index_col=0)
+        dict_idx = idx_df.to_dict()
         try:
             chrom, start, end = [
-                dict_inds[qry][job_id] for
-                qry in ["Chromosome", "Start", "End"]]
+                dict_idx[each_line][job_id] for
+                each_line in ["Chromosome", "Start", "End"]]
         except:
             raise ValueError(
                 "{} Job id is larger than available indices".format(
@@ -154,10 +136,10 @@ class GetKmers:
         :raises ValueError: If top 10 FASTA lines have
             sequences of varying length
         """
-        chr_path = self.chr_path
+        chrom_path = self.chrom_path
         line_nums = 10
         len_lines = []
-        with open(chr_path, "r") as chr_link:
+        with open(chrom_path, "r") as chr_link:
             for line_num in range(line_nums):
                 chr_line = chr_link.readline().rstrip()
                 if ">" not in chr_line:
@@ -188,7 +170,7 @@ class GetKmers:
         :returns: Numpy array with each member being one line of FASTA
         """
         start = self.start
-        end, chr_path = self.end, self.chr_path
+        end, chrom_path = self.end, self.chrom_path
         kmer = int(self.kmer.replace("k", ""))
         start = start - kmer
         if start < 0:
@@ -201,7 +183,7 @@ class GetKmers:
                           dtype="|S{}".format(fasta_fix + 1))
         ind_seq = 0
         STORE_LINE = False
-        with open(chr_path, "r") as chr_link:
+        with open(chrom_path, "r") as chr_link:
             line_ind = 0
             for each_line in chr_link:
                 if line_ind == st_line:
@@ -275,8 +257,9 @@ class GetKmers:
 
 
 if __name__ == "__main__":
-    chrsize_path, out_dir, kmer, job_id, chr_dir = get_args()
+    chromsize_path, out_dir, kmer, job_id, chr_dir, idx_path = get_args()
     GetKmerObj = GetKmers(
         out_dir, kmer, job_id,
-        chr_dir, chrsize_path)
+        chr_dir, chromsize_path,
+        idx_path)
     GetKmerObj.write_region()

@@ -89,6 +89,14 @@ class BowtieWrapper:
                 len(kmer_names), job_id))
 
 
+def check_genome(index_dir, index_name):
+    all_idx_paths = [
+        each_path for each_path in
+        os.listdir(index_dir) if index_name in each_path]
+    if len(all_idx_paths) < 6:
+        raise ValueError("Index does not exist")
+
+
 if __name__ == "__main__":
     parser = ArgumentParser(
         description="Umap wrapper for running bowtie "
@@ -119,6 +127,7 @@ if __name__ == "__main__":
         default=0,
         help="1-based index for selecting a k-mer file")
     args = parser.parse_args()
+    check_genome(args.index_dir, args.index_name)
     job_id = args.job_id
     if job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1

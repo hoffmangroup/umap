@@ -135,13 +135,13 @@ class ArgHandler:
                 LenChrs = len_chrs_after_complement
                 print "Length of chromosomes changed to %d to account for\
                 reverse complements" % LenChrs
-        chr_ind_path = index_unique_kmer_jobids(chrsize_path)
+        idx_path = index_unique_kmer_jobids(chrsize_path)
         self.genome_path = genome_path
         self.chrom_dir = chrom_dir
         self.dir_kmers = dir_kmers
         self.chrsize_path = chrsize_path
         self.out_dir = out_dir
-        self.chr_ind_path = chr_ind_path
+        self.idx_path = idx_path
         self.conversion = conversion
         self.Bismap = args.Bismap
         self.queue_name = args.queue_name
@@ -211,8 +211,8 @@ def index_genome(queue_name, converted_path,
     return index_suffix, job_num
 
 
-def get_unique_kmer_jobnums(chr_ind_path):
-    ind_df = pd.read_csv(chr_ind_path, sep="\t")
+def get_unique_kmer_jobnums(idx_path):
+    ind_df = pd.read_csv(idx_path, sep="\t")
     last_ind = ind_df.shape[0] + 1
     return last_ind
 
@@ -235,7 +235,7 @@ def write_job(list_out, write_path):
 def make_unique_kmers(chrom_dir, dir_kmers,
                       kmer_size, queue_name,
                       source_dir, conversion_job_id,
-                      chr_ind_path, chrsize_path,
+                      idx_path, chrsize_path,
                       write_path, var_id,
                       job_lim, pipe):
     """Generates kmer.gz files of the genome
@@ -243,7 +243,7 @@ def make_unique_kmers(chrom_dir, dir_kmers,
     # chr_files = os.listdir(chrom_dir)
     # chr_fas = sublist_by_reg(".fa$", chr_files)
     out_dir = "{}/k{}".format(dir_kmers, kmer_size)
-    ind_jobs = get_unique_kmer_jobnums(chr_ind_path)
+    ind_jobs = get_unique_kmer_jobnums(idx_path)
     array_param = "1-{}".format(ind_jobs)
     get_kmers = ["qsub", "-q",
                  queue_name, "-t",
@@ -257,8 +257,8 @@ def make_unique_kmers(chrom_dir, dir_kmers,
                  "-e", "{}/Bismap.UniqueKmers.ERR".format(dir_kmers),
                  "python", "get_kmers.py",
                  chrsize_path, out_dir,
-                 "k{}".format(kmer_size), chrom_dir,
-                 "-var_id", var_id]
+                 chrom_dir, idx_path,
+                 "--var_id", var_id, "--kmer", "k{}".format(kmer_size)]
     if pipe:
         get_kmers = pipe_job(get_kmers)
     if write_path != "False":
@@ -576,7 +576,7 @@ def index_unique_kmer_jobids(chrsize_path, CHUNK_SIZE=1e6):
 if __name__ == "__main__":
     args = ArgHandler()
     # genome_path, chrom_dir, dir_kmers, chrsize_path, out_dir = args_list[:5]
-    # chr_ind_path, conversion, Bismap, queue_name = args_list[5:9]
+    # idx_path, conversion, Bismap, queue_name = args_list[5:9]
     # kmers, SimultaneousJobs, ExitAfterIndexing = args_list[9:12]
     # var_id, write_script, source_dir, GenomeReady = args_list[12:16]
     # fasta_path, bowtie_path, LenChrs, pipe = args_list[16:]
@@ -600,7 +600,7 @@ if __name__ == "__main__":
                 args.chrom_dir, args.dir_kmers, kmer,
                 args.queue_name, args.source_dir,
                 conversion_job_id,
-                args.chr_ind_path, args.chrsize_path,
+                args.idx_path, args.chrsize_path,
                 args.write_script, args.var_id,
                 args.SimultaneousJobs, args.pipe)
             bowtie_job_id = run_bowtie(
