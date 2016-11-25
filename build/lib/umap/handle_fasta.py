@@ -43,12 +43,13 @@ class FastaHandler:
         print("Nucleotide conversion: {}".format(self.conversion))
         if not os.path.exists(self.chr_dir):
             os.makedirs(self.chr_dir)
-        chr_path = self.chr_dir + "/chr1.fa"
+        chr_path = self.chr_dir + "/chr1.fasta"
         chr_link = open(chr_path, "w")
         if self.complement:
-            chr_path_rc = chr_path.replace(".fa", "_RC.fa")
+            chr_path_rc = chr_path.replace(".fasta", "_RC.fasta")
             chr_link_rc = open(chr_path_rc, "w")
-            out_link_rc = open(self.out_path.replace(".fa", "_RC.fa"), "w")
+            out_link_rc = open(self.out_path.replace(
+                ".fasta", "_RC.fasta"), "w")
         out_link = open(self.out_path, "w")
         ad_fin = ""
         chr_len = 0
@@ -65,7 +66,7 @@ class FastaHandler:
                     chr_link.close()
                     print ad_fin
                     chrom = ad_line[1:]
-                    chr_path = "{}/{}.fa".format(
+                    chr_path = "{}/{}.fasta".format(
                         self.chr_dir, chrom)
                     chr_link = open(chr_path, "w")
                     if self.complement:
@@ -78,7 +79,7 @@ class FastaHandler:
                         ad_line_rc = ad_line + "_RC"
                         chr_link_rc.close()
                         chr_link_rc = open(
-                            chr_path.replace(".fa", "_RC.fa"), "w")
+                            chr_path.replace(".fasta", "_RC.fasta"), "w")
                         out_link_rc.write(ad_line_rc + "\n")
                         chr_link_rc.write(ad_line_rc + "\n")
                     print "%s started at %s" % (ad_line, str(datetime.now()))
@@ -122,10 +123,10 @@ class FastaHandler:
                                out_link_rc, chr_len, chrom)
             out_link_rc.close()
             chr_link_rc.close()
-            call(" ".join(["cat", self.out_path.replace(".fa", "_RC.fa"),
+            call(" ".join(["cat", self.out_path.replace(".fasta", "_RC.fasta"),
                            ">>", self.out_path]), shell=True)
-            call(["mv", self.out_path.replace(".fa", "_RC.fa"),
-                 self.out_path.replace(".fa", "_Deprecated_RC.fa")])
+            call(["mv", self.out_path.replace(".fasta", "_RC.fasta"),
+                 self.out_path.replace(".fasta", "_Deprecated_RC.fasta")])
 
     def write_reverse(complement_ar, chr_link_rc,
                       out_link_rc, chr_len, chrom):

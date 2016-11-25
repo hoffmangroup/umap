@@ -100,6 +100,11 @@ class ArgHandler:
             "python <script>.py <arg1> <arg2>', 'echo python "
             "<script>.py <arg1> <arg2> | qsub -q <queuename> "
             "-N <jobname>' will be written/executed.")
+        parser.add_argument(
+            "-chunk",
+            default=1000000,
+            type=int,
+            help="Length of chromosomal chunks")
         args = parser.parse_args()
         out_dir = args.out_dir
         chrom_dir, dir_kmers, index_dir = make_dir_structure(out_dir)
@@ -135,7 +140,7 @@ class ArgHandler:
                 LenChrs = len_chrs_after_complement
                 print "Length of chromosomes changed to %d to account for\
                 reverse complements" % LenChrs
-        idx_path = index_unique_kmer_jobids(chrsize_path)
+        idx_path = index_unique_kmer_jobids(chrsize_path, args.chunk)
         self.genome_path = genome_path
         self.chrom_dir = chrom_dir
         self.dir_kmers = dir_kmers
@@ -545,7 +550,7 @@ def index_unique_kmer_jobids(chrsize_path, CHUNK_SIZE=1e6):
 
     :returns: Path to index file
     """
-    CHUNCK_SIZE = int(CHUNK_SIZE)
+    CHUNK_SIZE = int(CHUNK_SIZE)
     ind_path = "{}/chrsize_index.tsv".format(
         "/".join(chrsize_path.split("/")[:-1]))
     if not os.path.exists(ind_path):
@@ -558,12 +563,12 @@ def index_unique_kmer_jobids(chrsize_path, CHUNK_SIZE=1e6):
             for chrsize_line in chrsize_link:
                 chr, len_chr = chrsize_line.rstrip().split("\t")
                 end = int(len_chr) + start
-                for pos in range(start, end, int(1e6)):
+                for pos in range(start, end, CHUNK_SIZE):
                     if pos < end:
-                        if pos + CHUNCK_SIZE - 1 > end:
+                        if pos + CHUNK_SIZE - 1 > end:
                             pos_end = end
                         else:
-                            pos_end = pos + CHUNCK_SIZE - 1
+                            pos_end = pos + CHUNK_SIZE - 1
                         ind_link.write(
                             "\t".join(
                                 [str(ind), chr, str(pos), str(int(pos_end))]) +

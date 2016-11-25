@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: umap
-Version: 0.1.1
+Version: 0.1.2
 Summary: Umap and Bismap: tools for genome and methylome mappability
 Home-page: https://bitbucket.org/hoffmanlab/proj/bismap
 Author: Mehran Karimzadeh, Carl Ernst, Anshul Kundaje, Michael M. Hoffman
@@ -142,6 +142,9 @@ Description: .. image:: https://readthedocs.org/projects/umap/badge/?version=lat
         the genome at a time. The index ID can be specified by -job_id, or if GetKmers is
         submitted as a job array, GetKmers will use the variable name set by -var_id to obtain
         the environmental variable for the job array ID.
+        
+        *Important: The chromosome names in the fasta file should not contain underscore.
+        Underscore is used in Bismap to differentiate reverse complement chromosomes.*
         
         
         Run Bowtie

@@ -135,6 +135,9 @@ the genome at a time. The index ID can be specified by -job_id, or if GetKmers i
 submitted as a job array, GetKmers will use the variable name set by -var_id to obtain
 the environmental variable for the job array ID.
 
+*Important: The chromosome names in the fasta file should not contain underscore.
+Underscore is used in Bismap to differentiate reverse complement chromosomes.*
+
 
 Run Bowtie
 ----------
