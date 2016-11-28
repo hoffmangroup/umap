@@ -97,7 +97,7 @@ class Int8Handler:
                 uint_path, kmer, cur_chr)
             if self.type != "Umap":
                 uint_path_other = in_dir +\
-                    "/" + uint_path.replace(cur_chr, other_chr)
+                    "/" + uint_path.split("/")[-1].replace(cur_chr, other_chr)
                 uniquely_mappable_other = self.load_uint_ar(
                     uint_path_other, kmer, other_chr)
 
@@ -121,7 +121,7 @@ class Int8Handler:
                     if not os.path.exists(out_dir_uint):
                         os.makedirs(out_dir_uint)
                     out_path_uint = "{}/{}.k{}.uint8.unique.gz".format(
-                        (out_dir_uint, cur_chr, kmer))
+                        out_dir_uint, cur_chr, kmer)
                     out_link_uint = gzip.open(out_path_uint, "wb")
                     out_link_uint.write(unique_ar.tobytes())
                     out_link_uint.close()
