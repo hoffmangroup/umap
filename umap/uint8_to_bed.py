@@ -358,6 +358,11 @@ if __name__ == "__main__":
         "all of the regions in the genome that are uniquely mappable "
         "by each of the k-mers")
     parser.add_argument(
+        "-kmers",
+        default=["k0"],
+        nargs="*",
+        help="Specify kmers separated by space such as: -kmers k10 k20")
+    parser.add_argument(
         "-job_id",
         type=int,
         default=0,
@@ -384,6 +389,8 @@ if __name__ == "__main__":
         if job_id == "":
             PARALLEL = False
     kmers = FileHandler.kmers
+    if args.kmers[0] != "k0":
+        kmers = args.kmers
     # for kmer in kmers:
     for kmer in kmers:
         if args.bed:

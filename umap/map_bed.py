@@ -207,7 +207,7 @@ class BedMappability:
                 temp_df["SingleRead.Mappability"] = \
                     temp_df["MultiRead.Mappability"]
                 ind_unique, = np.where(temp_df["SingleRead.Mappability"] > 0)
-                temp_df["SingleRead.Mappability"][ind_unique] = 1
+                temp_df["SingleRead.Mappability"].iloc[ind_unique] = 1
             else:
                 less_than_kmer = uint_ar <= kmer
                 not_zero = uint_ar != 0

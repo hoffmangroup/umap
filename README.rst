@@ -1,5 +1,9 @@
 .. image:: https://readthedocs.org/projects/umap/badge/?version=latest
 
+.. role:: red
+
+.. raw:: html
+    <style> .red {color:red} </style>
 
 
 Umap and Bismap: quantifying genome and methylome mappability
@@ -135,8 +139,10 @@ the genome at a time. The index ID can be specified by -job_id, or if GetKmers i
 submitted as a job array, GetKmers will use the variable name set by -var_id to obtain
 the environmental variable for the job array ID.
 
-*Important: The chromosome names in the fasta file should not contain underscore.
-Underscore is used in Bismap to differentiate reverse complement chromosomes.*
+
+
+:red:`**Important: The chromosome names in the fasta file should not contain underscore.
+Underscore is used in Bismap to differentiate reverse complement chromosomes.**`
 
 
 Run Bowtie
@@ -186,6 +192,28 @@ Convert numeric vectors to BED and Wiggle
 .. method:: Int8Handler.write_as_wig
 
 To visualize binary and numeric vectors that are produced by Umap, you can use Int8Handler.
+
+
+Special instructions for Bismap
+-------------------------------
+
+For Bismap, you must create the mappability of C :math:`\rightarrow` T
+and G :math:`\rightarrow` A by specifying -Bismap, -C2T, and -G2A each time.
+After creating these two mappability, for each genome you will have a
+kmers/globalmap_k<min>tok<max> folder with normal and reverse complemented chromosome mappabilities.
+
+
+The first step is to merge the mappability of normal and reverse complemented chromosomes for each
+genome. This can be done through uint8_to_bed.py ::
+
+    python uint8_to_bed.py <MergedKmerDir> <OutDirC2T> <LabelForOutputFiles> -C2T -chrsize_path <ChromSizeFile> -WriteUnique
+    python uint8_to_bed.py <MergedKmerDir> <OutDirG2A> <LabelForOutputFiles> -G2A -chrsize_path <ChromSizeFile> -WriteUnique
+
+
+When you have created the merged mappability of each chromosome once for C :math:`\rightarrow` T genome
+and once for G :math:`\rightarrow` A genome, you should use combine_umaps.py and specify -kmer_dir_2 ::
+
+    qsub <...> -t 1-<NumberOfChromosomes> python combine_umaps.py <OutDirC2T> <ChromSizePath> -out_dir <OutDir> -kmer_dir_2 <OutDirG2A>
 
 
 Requesting Genomes

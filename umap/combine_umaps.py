@@ -51,6 +51,8 @@ def get_args():
     out_dir = args.out_dir
     kmers = [each_kmer for each_kmer in next(os.walk(args.kmer_dir))[1]
              if "k" == each_kmer[0]]
+    if len(kmers) < 1:
+        raise ValueError("{} lacks kmer folders".format(args.kmer_dir))
     if args.job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1
     else:
