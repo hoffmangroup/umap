@@ -1,17 +1,12 @@
 Metadata-Version: 1.1
 Name: umap
-Version: 0.1.2
+Version: 1.0.0
 Summary: Umap and Bismap: tools for genome and methylome mappability
 Home-page: https://bitbucket.org/hoffmanlab/proj/bismap
 Author: Mehran Karimzadeh, Carl Ernst, Anshul Kundaje, Michael M. Hoffman
 Author-email: mehran.karimzadeh@uhnresearch.ca
 License: GPLv3
 Description: .. image:: https://readthedocs.org/projects/umap/badge/?version=latest
-        
-        .. role:: red
-        
-        .. raw:: html
-            <style> .red {color:red} </style>
         
         
         Umap and Bismap: quantifying genome and methylome mappability
@@ -149,8 +144,8 @@ Description: .. image:: https://readthedocs.org/projects/umap/badge/?version=lat
         
         
         
-        :red:`**Important: The chromosome names in the fasta file should not contain underscore.
-        Underscore is used in Bismap to differentiate reverse complement chromosomes.**`
+        **Important: The chromosome names in the fasta file should not contain underscore.
+        Underscore is used in Bismap to differentiate reverse complement chromosomes.**
         
         
         Run Bowtie

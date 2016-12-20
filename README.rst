@@ -1,10 +1,5 @@
 .. image:: https://readthedocs.org/projects/umap/badge/?version=latest
 
-.. role:: red
-
-.. raw:: html
-    <style> .red {color:red} </style>
-
 
 Umap and Bismap: quantifying genome and methylome mappability
 =============================================================
@@ -141,8 +136,8 @@ the environmental variable for the job array ID.
 
 
 
-:red:`**Important: The chromosome names in the fasta file should not contain underscore.
-Underscore is used in Bismap to differentiate reverse complement chromosomes.**`
+**Important: The chromosome names in the fasta file should not contain underscore.
+Underscore is used in Bismap to differentiate reverse complement chromosomes.**
 
 
 Run Bowtie
