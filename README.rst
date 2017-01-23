@@ -102,7 +102,8 @@ Now we will run a test using a wrapper in the umap directory called ubismap.py
 and a toy genome stored under umap/data ::
 
     cd umap
-    python ubismap.py data/genome.fa data/chrsize.tsv data/TestGenomeMappability all.q $BOWTIRDIR/bowtie-build --kmer 8 12 -write_script test_run.sh
+    python ubismap.py -h
+    python ubismap.py data/genome.fa data/chrsize.tsv data/TestGenomeMappability all.q $BOWTIEDIR/bowtie-build --kmer 8 12 -write_script test_run.sh
     sh test_run.sh
 
 The scripts that are produced by **ubismap.py** assume that you are using a Sun Grid Engine computing cluster.
