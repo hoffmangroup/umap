@@ -177,7 +177,7 @@ class BedMappability:
         and multi-read mappability of a bed file for a given
         chromosome.
         '''
-        dists = pd.unique(temp_df.iloc[2] - temp_df.iloc[1])
+        dists = pd.unique(temp_df.iloc[:, 2] - temp_df.iloc[:, 1])
         FIXED_DIST_1 = False
         if len(dists) < 2:
             if 1 in dists or 0 in dists:
@@ -239,8 +239,8 @@ class BedMappability:
                         sum(single_vec[kmer:(kmer + end - start + 1)] > 0)) /\
                         float(len(single_vec[kmer:(kmer + end - start + 1)]))
                     map_prob = float(len(idxs_unique)) / float(len(region_vec))
-                temp_df.iloc[i, -1] = map_prob
-                temp_df.iloc[i, -2] = unique_map_percent
+                    temp_df.iloc[i, -1] = map_prob
+                    temp_df.iloc[i, -2] = unique_map_percent
         return temp_df
 
     def write_bed(self, mapped_df):
