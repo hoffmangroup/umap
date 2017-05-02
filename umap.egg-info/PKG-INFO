@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: umap
-Version: 1.0.0
+Version: 1.1.0
 Summary: Umap and Bismap: tools for genome and methylome mappability
 Home-page: https://bitbucket.org/hoffmanlab/proj/bismap
 Author: Mehran Karimzadeh, Carl Ernst, Anshul Kundaje, Michael M. Hoffman
@@ -86,6 +86,20 @@ Description: .. image:: https://readthedocs.org/projects/umap/badge/?version=lat
         The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers that are uniquely mappable. 
         
         
+        News
+        ----
+        
+        * Version 1.1.0: We released Umap version 1.1.0 on May 2nd 2017.
+          As of this version, uint8 non-zero values correspond to the start position of
+          a k-mer that starts at that position and ends in k nucleotides downstream, and is unique.
+          Before this version, non-zero values in the uint8 files corresponded to all of nucleotides
+          covered by that unique k-mer (not only the start position).
+          Any multi-read mappability measure based on previous versions,
+          therefore, is over-estimated.
+        * Version 1.0.0: We released Umap version 1.0.0 on December 20th 2016.
+          *Deprecated, do not use!*
+        
+        
         
         Quick start
         -----------
@@ -110,7 +124,8 @@ Description: .. image:: https://readthedocs.org/projects/umap/badge/?version=lat
         and a toy genome stored under umap/data ::
         
             cd umap
-            python ubismap.py data/genome.fa data/chrsize.tsv data/TestGenomeMappability all.q $BOWTIRDIR/bowtie-build --kmer 8 12 -write_script test_run.sh
+            python ubismap.py -h
+            python ubismap.py data/genome.fa data/chrsize.tsv data/TestGenomeMappability all.q $BOWTIEDIR/bowtie-build --kmer 8 12 -write_script test_run.sh
             sh test_run.sh
         
         The scripts that are produced by **ubismap.py** assume that you are using a Sun Grid Engine computing cluster.

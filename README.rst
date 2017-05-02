@@ -78,6 +78,20 @@ region :math:`G_{i:j}` starting at *i* and ending at *j*, there are :math:`j - i
 The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers that are uniquely mappable. 
 
 
+News
+----
+
+* Version 1.1.0: We released Umap version 1.1.0 on May 2nd 2017.
+  As of this version, uint8 non-zero values correspond to the start position of
+  a k-mer that starts at that position and ends in k nucleotides downstream, and is unique.
+  Before this version, non-zero values in the uint8 files corresponded to all of nucleotides
+  covered by that unique k-mer (not only the start position).
+  Any multi-read mappability measure based on previous versions,
+  therefore, is over-estimated.
+* Version 1.0.0: We released Umap version 1.0.0 on December 20th 2016.
+  *Deprecated, do not use!*
+
+
 
 Quick start
 -----------

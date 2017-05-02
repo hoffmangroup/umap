@@ -46,8 +46,8 @@ def get_args():
     parser.add_argument(
         "-wigdir",
         default="",
-        help="Path to directory with <kmer>_<chrom>."
-        "MultiTrackMappability.wg.gz files.")
+        help="Path to directory with <chrom>.<kmer>."
+        "MultiReadMappability.wg.gz files.")
     args = parser.parse_args()
     if args.SingleNucleotide:
         if not os.path.exists(args.wigdir):
@@ -198,8 +198,8 @@ class BedMappability:
             uint_link.close()
             print("Using {}".format(umap_path))
             kmer = self.kmer
-            wig_path = "{}/{}_{}.MultiTrackMappability.wg.gz".format(
-                self.wigdir, self.kmer_str, cur_chr)
+            wig_path = "{}/{}.{}.MultiReadMappability.wg.gz".format(
+                self.wigdir, cur_chr, kmer)
             if os.path.exists(wig_path) and FIXED_DIST_1:
                 wig_ar = load_wig(wig_path, len(uint_ar))
                 temp_df["MultiRead.Mappability"] = \

@@ -60,7 +60,7 @@ class Int8Handler:
         return self.type
 
     def write_beds(self, out_label, kmer_cur,
-                   WriteUnique=False):
+                   WriteUnique=False, WriteBed=True):
         """Convert uint8 files to BED
 
         A method of class Int8Handler, it reads uint8 files of
@@ -126,28 +126,29 @@ class Int8Handler:
                     out_link_uint.write(unique_ar.tobytes())
                     out_link_uint.close()
 
-            bed_kmer_pos = self.get_bed6(
-                uniquely_mappable, kmer, STRAND, uint_path, cur_chr)
+            if WriteBed:
+                bed_kmer_pos = self.get_bed6(
+                    uniquely_mappable, kmer, STRAND, uint_path, cur_chr)
 
-            # Write the BED6 to a gzipped tsv file
-            out_name = "{}/{}.{}.bed.gz".format(
-                self.out_dir, kmer_cur, out_label)
-            if cur_chr == all_chrs[0]:
-                header = self.make_header(kmer_cur, type)
-                out_link = gzip.open(out_name, "wb")
-                out_link.write(header)
-            else:
-                out_link = gzip.open(out_name, "ab")
-            if len(bed_kmer_pos) > 0:
-                print "Found %d regions in %s" %\
-                    (bed_kmer_pos.shape[0], cur_chr)
-                for bed_line in bed_kmer_pos:
-                    line_out = [str(val) for val in bed_line]
-                    line_out = "\t".join(line_out) + "\n"
-                    out_link.write(line_out)
-                print "Created data of %s at %s" %\
-                    (cur_chr, str(datetime.now()))
-            out_link.close()
+                # Write the BED6 to a gzipped tsv file
+                out_name = "{}/{}.{}.bed.gz".format(
+                    self.out_dir, kmer_cur, out_label)
+                if cur_chr == all_chrs[0]:
+                    header = self.make_header(kmer_cur, type)
+                    out_link = gzip.open(out_name, "wb")
+                    out_link.write(header)
+                else:
+                    out_link = gzip.open(out_name, "ab")
+                if len(bed_kmer_pos) > 0:
+                    print "Found %d regions in %s" %\
+                        (bed_kmer_pos.shape[0], cur_chr)
+                    for bed_line in bed_kmer_pos:
+                        line_out = [str(val) for val in bed_line]
+                        line_out = "\t".join(line_out) + "\n"
+                        out_link.write(line_out)
+                    print "Created data of %s at %s" %\
+                        (cur_chr, str(datetime.now()))
+                out_link.close()
 
     def get_bed6(self, uniquely_mappable, kmer,
                  STRAND, uint_path, cur_chr):
@@ -374,7 +375,11 @@ if __name__ == "__main__":
         help="Environmental variable for finding chromosome indices")
     args = parser.parse_args()
     if not args.bed and not args.wiggle:
-        raise ValueError("Please specify only one of -bed or -wiggle")
+        if not args.WriteUnique:
+            raise ValueError(
+                "Please specify only one of -bed or -wiggle or -WriteUnique")
+        else:
+            print("Only writing unique k-mer files")
     if args.bed and args.wiggle:
         raise ValueError("Please specify at least one of -bed or -wiggle")
     if not os.path.exists(args.out_dir):
@@ -393,10 +398,10 @@ if __name__ == "__main__":
         kmers = args.kmers
     # for kmer in kmers:
     for kmer in kmers:
-        if args.bed:
+        if args.bed or args.WriteUnique:
             print("Creating BED file")
             FileHandler.write_beds(args.out_label,
-                                   kmer, args.WriteUnique)
+                                   kmer, args.WriteUnique, args.bed)
         elif PARALLEL and args.wiggle:
             chrom = FileHandler.chroms[int(job_id) - 1]
             print(

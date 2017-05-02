@@ -60,7 +60,8 @@ class Int8Handler:
         return self.type
 
     def write_beds(self, out_label, kmer_cur,
-                   WriteUnique=False, WriteBed=True):
+                   WriteUnique=False, WriteBed=True,
+                   PARALLEL=False, job_id=""):
         """Convert uint8 files to BED
 
         A method of class Int8Handler, it reads uint8 files of
@@ -82,6 +83,7 @@ class Int8Handler:
             Warning: If no uniquely mappable read is found in
                 any of the uint8 arrays.
         """
+        chroms = self.chroms
         kmer = int(kmer_cur.replace("k", ""))
         STRAND = "+"
         if self.G2A:
@@ -89,7 +91,10 @@ class Int8Handler:
         in_dir = self.in_dir
         all_chrs = self.chroms
         all_chrs.sort()
-        for cur_chr in self.chroms:
+        if PARALLEL:
+            cur_chr = all_chrs[int(job_id) - 1]
+            chroms = [cur_chr]
+        for cur_chr in chroms:
             other_chr = cur_chr + "_RC"
             uint_path = "{}/{}{}".format(
                 in_dir, cur_chr, self.fix)
@@ -401,7 +406,8 @@ if __name__ == "__main__":
         if args.bed or args.WriteUnique:
             print("Creating BED file")
             FileHandler.write_beds(args.out_label,
-                                   kmer, args.WriteUnique, args.bed)
+                                   kmer, args.WriteUnique,
+                                   args.bed, PARALLEL, job_id)
         elif PARALLEL and args.wiggle:
             chrom = FileHandler.chroms[int(job_id) - 1]
             print(

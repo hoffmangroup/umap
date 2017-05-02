@@ -46,8 +46,8 @@ def get_args():
     parser.add_argument(
         "-wigdir",
         default="",
-        help="Path to directory with <kmer>_<chrom>."
-        "MultiTrackMappability.wg.gz files.")
+        help="Path to directory with <chrom>.<kmer>."
+        "MultiReadMappability.wg.gz files.")
     args = parser.parse_args()
     if args.SingleNucleotide:
         if not os.path.exists(args.wigdir):
@@ -177,7 +177,7 @@ class BedMappability:
         and multi-read mappability of a bed file for a given
         chromosome.
         '''
-        dists = pd.unique(temp_df.iloc[2] - temp_df.iloc[1])
+        dists = pd.unique(temp_df.iloc[:, 2] - temp_df.iloc[:, 1])
         FIXED_DIST_1 = False
         if len(dists) < 2:
             if 1 in dists or 0 in dists:
@@ -198,8 +198,8 @@ class BedMappability:
             uint_link.close()
             print("Using {}".format(umap_path))
             kmer = self.kmer
-            wig_path = "{}/{}_{}.MultiTrackMappability.wg.gz".format(
-                self.wigdir, self.kmer_str, cur_chr)
+            wig_path = "{}/{}.{}.MultiReadMappability.wg.gz".format(
+                self.wigdir, cur_chr, kmer)
             if os.path.exists(wig_path) and FIXED_DIST_1:
                 wig_ar = load_wig(wig_path, len(uint_ar))
                 temp_df["MultiRead.Mappability"] = \
@@ -239,8 +239,8 @@ class BedMappability:
                         sum(single_vec[kmer:(kmer + end - start + 1)] > 0)) /\
                         float(len(single_vec[kmer:(kmer + end - start + 1)]))
                     map_prob = float(len(idxs_unique)) / float(len(region_vec))
-                temp_df.iloc[i, -1] = map_prob
-                temp_df.iloc[i, -2] = unique_map_percent
+                    temp_df.iloc[i, -1] = map_prob
+                    temp_df.iloc[i, -2] = unique_map_percent
         return temp_df
 
     def write_bed(self, mapped_df):

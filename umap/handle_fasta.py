@@ -3,6 +3,7 @@ from datetime import datetime
 import numpy as np
 import os
 from subprocess import call
+import warnings
 
 
 class FastaHandler:
@@ -48,8 +49,12 @@ class FastaHandler:
         if self.complement:
             chr_path_rc = chr_path.replace(".fasta", "_RC.fasta")
             chr_link_rc = open(chr_path_rc, "w")
-            out_link_rc = open(self.out_path.replace(
-                ".fasta", "_RC.fasta"), "w")
+            out_path_rc = self.out_path.replace(
+                ".fasta", "_RC.fasta")
+            if out_path_rc == self.out_path:
+                out_path_rc = self.out_path.replace(
+                    ".fa", "_RC.fasta")
+            out_link_rc = open(out_path_rc, "w")
         out_link = open(self.out_path, "w")
         ad_fin = ""
         chr_len = 0
@@ -66,14 +71,22 @@ class FastaHandler:
                     chr_link.close()
                     print ad_fin
                     chrom = ad_line[1:]
+                    CHROM_EXISTS = chrom in chrsize_dict.keys()
                     chr_path = "{}/{}.fasta".format(
                         self.chr_dir, chrom)
                     chr_link = open(chr_path, "w")
-                    if self.complement:
+                    if self.complement and CHROM_EXISTS:
                         if complement_ar[0] != 0:
                             self.write_reverse(complement_ar, chr_link_rc,
                                                out_link_rc, chr_len, chrom)
-                        chr_len = chrsize_dict[chrom]
+                        chr_len = chrsize_dict.get(chrom, 0)
+                        if chr_len == 0:
+                            print(
+                                "Failed to find length of {}".format(
+                                    chrom))
+                            warnings.warn(
+                                "Failed to find length of {}".format(
+                                    chrom))
                         complement_ar = np.empty((chr_len), dtype="|S8")
                         start = 0
                         ad_line_rc = ad_line + "_RC"
@@ -82,8 +95,10 @@ class FastaHandler:
                             chr_path.replace(".fasta", "_RC.fasta"), "w")
                         out_link_rc.write(ad_line_rc + "\n")
                         chr_link_rc.write(ad_line_rc + "\n")
-                    print "%s started at %s" % (ad_line, str(datetime.now()))
-                else:
+                    print(
+                        "{} started at {}".format(
+                            ad_line, str(datetime.now())))
+                elif CHROM_EXISTS:
                     ad_line = ad_line.upper()
                     if self.complement:
                         ad_line_rc = ad_line.replace("A", "1")
@@ -102,7 +117,7 @@ class FastaHandler:
                 ad_fin = ad_line + "\n"
                 out_link.write(ad_fin)
                 chr_link.write(ad_fin)
-                if self.complement:
+                if self.complement and CHROM_EXISTS:
                     ad_fin_rc = ad_line_rc + "\n"
                     if "chr" not in ad_fin_rc:
                         end_pos = start + len(ad_line_rc)
@@ -114,21 +129,23 @@ class FastaHandler:
                                     start, end_pos,
                                     len(range(start, end_pos))))
                             print(ad_line_rc)
-                            raise ValueError("Failed to add sequences")
+                            warnings.warn(
+                                "Failed to add sequences for {}".format(chrom))
                         start = start + len(ad_line_rc)
         out_link.close()
         chr_link.close()
         if self.complement:
-            self.write_reverse(complement_ar, chr_link_rc,
-                               out_link_rc, chr_len, chrom)
+            if CHROM_EXISTS:
+                self.write_reverse(complement_ar, chr_link_rc,
+                                   out_link_rc, chr_len, chrom)
+                chr_link_rc.close()
             out_link_rc.close()
-            chr_link_rc.close()
-            call(" ".join(["cat", self.out_path.replace(".fasta", "_RC.fasta"),
+            call(" ".join(["cat", out_path_rc,
                            ">>", self.out_path]), shell=True)
-            call(["mv", self.out_path.replace(".fasta", "_RC.fasta"),
-                 self.out_path.replace(".fasta", "_Deprecated_RC.fasta")])
+            call(["mv", out_path_rc,
+                  out_path_rc.replace(".fa", "_Deprecated_RC.fa")])
 
-    def write_reverse(complement_ar, chr_link_rc,
+    def write_reverse(self, complement_ar, chr_link_rc,
                       out_link_rc, chr_len, chrom):
         complement_ar = complement_ar[::-1]
         print("Length of {} was {}".format(chrom, chr_len))

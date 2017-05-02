@@ -58,7 +58,7 @@ class ArgHandler:
         parser.add_argument(
             "-Bismap",
             action="store_true",
-            help="Specify --Bismap if double genome indexing is expected. "
+            help="Specify -Bismap if double genome indexing is expected. "
             "This would create a genome that is concatenation of forward "
             "and reverse complement. If -C2T or -G2A is expected, "
             "this must be specified")
@@ -506,7 +506,10 @@ def process_genome(GenomeReady, genome_path,
     """
     if GenomeReady:
         print("Assuming the genome and index files exist")
-        index_suffix = "BisMap_bowtie.ind"
+        if Bismap:
+            index_suffix = "BisMap_bowtie.ind"
+        else:
+            index_suffix = "Umap_bowtie.ind"
         index_job_id = "1"
     else:
         print "Started copying/reverse complementing/converting"

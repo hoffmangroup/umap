@@ -9,6 +9,7 @@ umap/map_bed.py
 umap/run_bowtie.py
 umap/ubismap.py
 umap/uint8_to_bed.py
+umap/uint8_to_bed_parallel.py
 umap/unify_bowtie.py
 umap.egg-info/PKG-INFO
 umap.egg-info/SOURCES.txt

@@ -109,8 +109,9 @@ class UnifyBowtie:
         for bowtie_path in bowtie_paths:
             mapped_indices = self.get_mapped_positions(bowtie_path)
             for st_index in mapped_indices:
-                end_index = st_index + KMER
-                unique_ar[st_index:end_index] = 1
+                # end_index = st_index + KMER
+                # unique_ar[st_index:end_index] = 1
+                unique_ar[st_index] = 1
             print("Done with {}".format(bowtie_path))
         out_path = "{}/{}.k{}.uint8.unique.gz".format(
             self.bowtie_outdir, chrom, KMER)
