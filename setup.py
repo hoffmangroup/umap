@@ -11,7 +11,7 @@ def readme():
 
 
 setup(name='umap',
-      version='1.1.0',
+      version='1.1.1',
       description=DESCRIPTION,
       long_description=readme(),
       classifiers=[

@@ -81,6 +81,11 @@ The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers 
 News
 ----
 
+* Version 1.1.1: In addition to wiggle, you can create bedGraph of multi-read mappability.
+  New expectation: order of chromosomes in chromosome-size file must match genome FASTA.
+  In this version, *unify_bowtie* filters out any unexpected unique mapping of a *k*-mer
+  to unintended chromosomes.
+  This version released on November 24th 2017.
 * Version 1.1.0: We released Umap version 1.1.0 on May 2nd 2017.
   As of this version, uint8 non-zero values correspond to the start position of
   a k-mer that starts at that position and ends in k nucleotides downstream, and is unique.
@@ -120,6 +125,12 @@ and a toy genome stored under umap/data ::
     python ubismap.py data/genome.fa data/chrsize.tsv data/TestGenomeMappability all.q $BOWTIEDIR/bowtie-build --kmer 8 12 -write_script test_run.sh
     sh test_run.sh
 
+
+**Important: Order of chromosomes in your genome FASTA must match order
+of chromosomes in your chromosome-size file. Chromosome-size file should not
+contain header (2 column file with chromosome name and length of the chromosome).**
+
+    
 The scripts that are produced by **ubismap.py** assume that you are using a Sun Grid Engine computing cluster.
 You can use parameters of this script to adjust it to your own system. You may need to manually edit this file
 because many of the SGE settings are very different than other computing clusters.
@@ -155,6 +166,7 @@ the environmental variable for the job array ID.
 Underscore is used in Bismap to differentiate reverse complement chromosomes.**
 
 
+
 Run Bowtie
 ----------
 
@@ -178,6 +190,11 @@ Merge bowtie outputs
 For each *k*-mer file, there will be a bowtie file with information of unique *k*-mers.
 For each chromosome, a binary vector with length of the chromosome will be created.
 If a *k*-mer starting at a given position is unique, the value will be 1.
+
+
+**Important: Name of you chromosome should start with "chr" and not contain underscore.
+Order of chromosomes in your genome FASTA must match order
+of chromosomes in your chromosome size file.**
 
 
 Merge data of various *k*-mers

@@ -36,19 +36,23 @@ class UnifyBowtie:
         self.bowtie_outdir = bowtie_outdir
         self.chrsize_path = chrsize_path
         self.ind_chr = job_id
-        self.chr_dict = self.make_chr_dict()
+        self.chr_dict, self.chrom_ord_dict = self.make_chr_dict()
         self.bowtie_to_unique()
 
     def make_chr_dict(self):
         """Makes a dictionary using self.chrsize_path"""
         chr_dict = {}
+        order_dict = {}
+        order_chrom = 0
         with open(self.chrsize_path, "r") as chrsize_link:
             for chrsize_line in chrsize_link:
                 chrom, size = chrsize_line.rstrip().split("\t")
                 chr_dict[chrom] = int(size)
-        return chr_dict
+                order_dict[chrom] = order_chrom
+                order_chrom = order_chrom + 1
+        return chr_dict, order_dict
 
-    def get_mapped_positions(self, bowtie_path):
+    def get_mapped_positions(self, bowtie_path, chrom_idx):
         """Finds mapped regions in bowtie output
 
         In a gzipped bowtie output with perfect matches,
@@ -68,6 +72,7 @@ class UnifyBowtie:
             bowtie_path, sep="\t",
             compression="gzip",
             names=["Ind", "Strand", "Chr", "Start"])
+        bowtie_df = bowtie_df[bowtie_df["Chr"] == chrom_idx]
         bowtie_df = bowtie_df[bowtie_df["Strand"] == "+"]
         ind_ar = bowtie_df.iloc[:, 3]
         return ind_ar
@@ -98,6 +103,7 @@ class UnifyBowtie:
         all_chrs = self.chr_dict.keys()
         all_chrs.sort()
         chrom = all_chrs[self.ind_chr]
+        chrom_idx = self.chrom_ord_dict[chrom]
         size = self.chr_dict[chrom]
         new_chr_name = self.get_other_chr_name(chrom)
         chr_paths = ["{}/{}".format(self.bowtie_outdir, bowtie_path)
@@ -107,7 +113,7 @@ class UnifyBowtie:
         bowtie_paths = subset_list(chr_paths, ".bowtie.gz")
         unique_ar = np.zeros(size, dtype=np.uint8)
         for bowtie_path in bowtie_paths:
-            mapped_indices = self.get_mapped_positions(bowtie_path)
+            mapped_indices = self.get_mapped_positions(bowtie_path, chrom_idx)
             for st_index in mapped_indices:
                 # end_index = st_index + KMER
                 # unique_ar[st_index:end_index] = 1

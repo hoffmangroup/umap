@@ -63,7 +63,7 @@ class FastaHandler:
         with open(self.in_path, "r") as fas_link:
             for each_line in fas_link:
                 ad_line = each_line.rstrip()
-                if ">chr" in ad_line:
+                if ">" in ad_line:
                     if " " in ad_line:
                         ad_line = ad_line.split(" ")[0]
                     if "\t" in ad_line:

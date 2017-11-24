@@ -60,7 +60,8 @@ class Int8Handler:
         return self.type
 
     def write_beds(self, out_label, kmer_cur,
-                   WriteUnique=False, WriteBed=True):
+                   WriteUnique=False, WriteBed=True,
+                   PARALLEL=False, job_id=""):
         """Convert uint8 files to BED
 
         A method of class Int8Handler, it reads uint8 files of
@@ -82,6 +83,7 @@ class Int8Handler:
             Warning: If no uniquely mappable read is found in
                 any of the uint8 arrays.
         """
+        chroms = self.chroms
         kmer = int(kmer_cur.replace("k", ""))
         STRAND = "+"
         if self.G2A:
@@ -89,7 +91,10 @@ class Int8Handler:
         in_dir = self.in_dir
         all_chrs = self.chroms
         all_chrs.sort()
-        for cur_chr in self.chroms:
+        if PARALLEL:
+            cur_chr = all_chrs[int(job_id) - 1]
+            chroms = [cur_chr]
+        for cur_chr in chroms:
             other_chr = cur_chr + "_RC"
             uint_path = "{}/{}{}".format(
                 in_dir, cur_chr, self.fix)
@@ -276,7 +281,7 @@ class Int8Handler:
         ar_quant = ar_quant / float(kmer)
         return ar_quant
 
-    def write_multiread(self, uint_path, out_path, kmer, chrom, bedGraph):
+    def write_as_wig(self, uint_path, out_path, kmer, chrom):
         """unsigned 8-bit integer array file to wiggle
 
         For a given numeric unsigned 8-bit integer vector that
@@ -305,19 +310,11 @@ class Int8Handler:
         for ind_st in range(len(poses_start)):
             pos_st = poses_start[ind_st] + 1
             pos_end = poses_end[ind_st] + 1
-            if bedGraph:
-                for each_pos in range(pos_st, pos_end):
-                    out_list = [chrom, str(each_pos), str(each_pos + 1),
-                                str(np.around(ar_quant[each_pos], 3))]
-                    out_link.write("\t".join(out_list) + "\n")
-            else:
-                start_line = "fixedStep " +\
-                    "chrom={} start={} step=1 span=1\n".format(
-                        chrom, pos_st)
-                out_link.write(start_line)
-                for each_pos in range(pos_st, pos_end):
-                    out_link.write(
-                        str(np.around(ar_quant[each_pos], 3)) + "\n")
+            start_line = "fixedStep chrom={} start={} step=1 span=1\n".format(
+                chrom, pos_st)
+            out_link.write(start_line)
+            for each_pos in range(pos_st, pos_end):
+                out_link.write(str(ar_quant[each_pos]) + "\n")
         print(
             "Finished saving the data to {} at {}".format(
                 out_path, str(datetime.now())))
@@ -361,12 +358,6 @@ if __name__ == "__main__":
         "for each chromosome. Make sure to specify -job_id "
         "or run in job array for parallel computation.")
     parser.add_argument(
-        "-bedGraph",
-        action="store_true",
-        help="If specified, will generate one bedGraph "
-        "file for each chromosome. Make sure to specify "
-        "-job_id or run in job array for parallel computation.")
-    parser.add_argument(
         "-bed",
         action="store_true",
         help="If specified, will generate bed files that specify "
@@ -388,18 +379,14 @@ if __name__ == "__main__":
         default="SGE_TASK_ID",
         help="Environmental variable for finding chromosome indices")
     args = parser.parse_args()
-    wiggle_or_bedg = False
-    if args.wiggle or args.bedGraph:
-        wiggle_or_bedg = True
-    if not args.bed and not wiggle_or_bedg:
+    if not args.bed and not args.wiggle:
         if not args.WriteUnique:
             raise ValueError(
                 "Please specify only one of -bed or -wiggle or -WriteUnique")
         else:
             print("Only writing unique k-mer files")
-    if args.bed and wiggle_or_bedg:
-        raise ValueError(
-            "Please specify at least one of -bed, -wiggle, or -bedGraph")
+    if args.bed and args.wiggle:
+        raise ValueError("Please specify at least one of -bed or -wiggle")
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
     FileHandler = Int8Handler(args.in_dir,
@@ -419,26 +406,21 @@ if __name__ == "__main__":
         if args.bed or args.WriteUnique:
             print("Creating BED file")
             FileHandler.write_beds(args.out_label,
-                                   kmer, args.WriteUnique, args.bed)
-        elif PARALLEL and wiggle_or_bedg:
+                                   kmer, args.WriteUnique,
+                                   args.bed, PARALLEL, job_id)
+        elif PARALLEL and args.wiggle:
             chrom = FileHandler.chroms[int(job_id) - 1]
             print(
                 "Saving Wiggle using job id {}, selected {}".format(
                     job_id, chrom))
-            if args.wiggle:
-                out_path = "{}/{}.{}.{}.MultiReadMappability.wg.gz".format(
-                    args.out_dir, args.out_label, chrom, kmer)
-            else:
-                out_path = "{}/{}.{}.{}.MultiReadMappability.{}.gz".format(
-                    args.out_dir, args.out_label, chrom, kmer, "bedGraph")
+            out_path = "{}/{}.{}.{}.MultiReadMappability.wg.gz".format(
+                args.out_dir, args.out_label, chrom, kmer)
             uint_path = "{}/{}.uint8.unique.gz".format(
                 args.in_dir, chrom)
             kmer_num = int(kmer.replace("k", ""))
-            FileHandler.write_multiread(uint_path, out_path, kmer_num,
-                                        chrom, args.bedGraph)
-        elif wiggle_or_bedg:
-            print("Creating wiggle (or bedGraph) for all "
-                  "chromosomes consequently")
+            FileHandler.write_as_wig(uint_path, out_path, kmer_num, chrom)
+        elif args.wiggle:
+            print("Creating wiggles for all chromosomes consequently")
             print("This may take long...")
             for chrom in FileHandler.chroms:
                 out_path = "{}/{}.{}.{}.MultiReadMappability.wg.gz".format(
@@ -446,8 +428,7 @@ if __name__ == "__main__":
                 uint_path = "{}/{}.uint8.unique.gz".format(
                     args.in_dir, chrom)
                 kmer_num = int(kmer.replace("k", ""))
-                FileHandler.write_multiread(uint_path, out_path, kmer_num,
-                                            chrom, args.bedGraph)
+                FileHandler.write_as_wig(uint_path, out_path, kmer_num, chrom)
                 print(
                     "Tired of waiting? Try parallel processing "
                     "by specifying -job_id")
