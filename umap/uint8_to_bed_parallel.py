@@ -36,10 +36,10 @@ class Int8Handler:
         self.C2T = C2T
         self.G2A = G2A
         self.chrsize_path = chrsize_path
-        self.in_prev_dir = "/".join(in_dir.split("/")[:-1])
+        self.in_prev_dir = os.path.dirname(in_dir)
         self.fix = ".uint8.unique.gz"
         self.uint8s = subset_list(os.listdir(in_dir), self.fix)
-        self.prev_dir = "/".join(self.in_dir.split("/")[:-1])
+        self.prev_dir = os.path.dirname(self.in_dir)
         self.kmers = subset_list(next(os.walk(self.in_prev_dir))[1],
                                  "^k")
         self.out_dir = out_dir
@@ -85,9 +85,11 @@ class Int8Handler:
         """
         chroms = self.chroms
         kmer = int(kmer_cur.replace("k", ""))
-        STRAND = "+"
+        STRAND = "."
         if self.G2A:
             STRAND = "-"
+        elif self.C2T:
+            STRAND = "+"
         in_dir = self.in_dir
         all_chrs = self.chroms
         all_chrs.sort()
@@ -138,25 +140,90 @@ class Int8Handler:
                 # Write the BED6 to a gzipped tsv file
                 out_name = "{}/{}.{}.bed.gz".format(
                     self.out_dir, kmer_cur, out_label)
+                if PARALLEL:
+                    out_name = "{}/{}.{}.{}.bed.gz".format(
+                        self.out_dir, cur_chr, kmer_cur, out_label)
                 if cur_chr == all_chrs[0]:
                     header = self.make_header(kmer_cur, type)
                     out_link = gzip.open(out_name, "wb")
-                    out_link.write(header)
+                    out_link.write(header.encode())
                 else:
                     out_link = gzip.open(out_name, "ab")
                 if len(bed_kmer_pos) > 0:
-                    print "Found %d regions in %s" %\
-                        (bed_kmer_pos.shape[0], cur_chr)
+                    print(
+                        "Found {} regions in {}".format(
+                            bed_kmer_pos.shape[0], cur_chr))
                     for bed_line in bed_kmer_pos:
-                        line_out = [str(val) for val in bed_line]
+                        line_out = [val.decode() for val in list(bed_line)]
                         line_out = "\t".join(line_out) + "\n"
-                        out_link.write(line_out)
-                    print "Created data of %s at %s" %\
-                        (cur_chr, str(datetime.now()))
+                        # print(line_out)
+                        out_link.write(line_out.encode("utf8"))
+                    print(
+                        "Created data of {} at {}".format(
+                            cur_chr, str(datetime.now())))
                 out_link.close()
 
     def get_bed6(self, uniquely_mappable, kmer,
                  STRAND, uint_path, cur_chr):
+        """Make BED6 from a binary vector
+
+        Converts a binary vector with the same length
+        as the chromosome to a BED6 file. Each 1
+        entry in the binary file indicates that the
+        k-mer starting at that position and ending at
+        k nucleotides downstream is uniquely mappable.
+        Thus the BED6 would show any region in the genome
+        that is uniquely mappable by at least one k-mer.
+
+        :param uniquely_mappable: numpy binary array (0 or 1 values)
+        :param kmer: Integer scalar showing read length (k-mer)
+        :param STRAND: Strand that will be saved to the BED6
+        :param uint_path: Path of the uint8 array that was used
+        :param cur_chr: Chromosome name the the data is from
+
+        :returns: A numpy string array with BED6 information
+        """
+        ar_quant = self.bin_arr_to_wig(
+            uniquely_mappable, kmer)
+        # This step assures non-overlapping entries
+        umap_ar = np.array(ar_quant > 0, dtype=int)
+        unimap_diff = np.diff(umap_ar)
+        poses_start, = np.where(unimap_diff == 1)
+        poses_end, = np.where(unimap_diff == -1)
+        if len(poses_start) != len(poses_end):
+            if len(poses_start) > len(poses_end):
+                poses_end = np.append(poses_end, [len(umap_ar)])
+            else:
+                poses_start = np.append([0], poses_start)
+        elif uniquely_mappable[0] == 1:
+            poses_start = np.append([0], poses_start)
+            poses_end = np.append(poses_end, [len(umap_ar)])
+        if len(poses_start) == 0:
+            warnings.warn(
+                "Found no uniquely mappable reads for {}!".format(
+                    uint_path))
+            bed_kmer_pos = []
+        else:
+            chr_length = self.chrsize_dict[cur_chr]
+            bed_kmer_pos = np.empty(shape=(len(poses_start), 6),
+                                    dtype="|S64")
+            ind_high = []
+            for ind_st in range(len(poses_start)):
+                if poses_end[ind_st] + kmer - 1 > chr_length:  # Doesn't change
+                    ind_high.append(ind_st)
+            bed_kmer_pos = np.array(
+                [[cur_chr, str(poses_start[i]),
+                  str(poses_end[i]),  # Switch to 0-based idexing V1.2.0
+                  "k{}".format(kmer),
+                  1, STRAND] for i in range(len(poses_start))],
+                dtype="|S64")
+            for each_ind in ind_high:
+                if int(bed_kmer_pos[each_ind][2]) > chr_length:
+                    bed_kmer_pos[each_ind][2] = str(chr_length)
+        return bed_kmer_pos
+
+    def get_bed6_deprecated(self, uniquely_mappable, kmer,
+                            STRAND, uint_path, cur_chr):
         """Make BED6 from a binary vector
 
         Converts a binary vector with the same length
@@ -197,11 +264,11 @@ class Int8Handler:
                                     dtype="S16")
             ind_high = []
             for ind_st in range(len(poses_start)):
-                if poses_end[ind_st] + kmer - 1 > chr_length:
+                if poses_end[ind_st] + kmer - 1 > chr_length:  # Doesn't change
                     ind_high.append(ind_st)
             bed_kmer_pos = np.array(
-                [[cur_chr, str(poses_start[i] + 1),
-                  str(poses_end[i] + kmer - 1),
+                [[cur_chr, str(poses_start[i]),
+                  str(poses_end[i] + kmer),  # Switch to 0-based idexing V1.2.0
                   "k" + str(kmer),
                   1, STRAND] for i in range(len(poses_start))],
                 dtype="S64")
@@ -216,8 +283,8 @@ class Int8Handler:
         uint_link = gzip.open(uint_path, "rb")
         uint_ar = np.frombuffer(uint_link.read(), dtype=np.uint8)
         uint_link.close()
-        print "Processing {} for {} {}".format(
-            uint_path, kmer, cur_chr)
+        print("Processing {} for {} {}".format(
+                uint_path, kmer, cur_chr))
         less_than_kmer = uint_ar <= kmer
         not_zero = uint_ar != 0
         uniquely_mappable = np.array(
@@ -418,7 +485,10 @@ if __name__ == "__main__":
             uint_path = "{}/{}.uint8.unique.gz".format(
                 args.in_dir, chrom)
             kmer_num = int(kmer.replace("k", ""))
-            FileHandler.write_as_wig(uint_path, out_path, kmer_num, chrom)
+            if not os.path.exists(out_path):
+                FileHandler.write_as_wig(uint_path, out_path, kmer_num, chrom)
+            else:
+                print("Skipping, {} exists".format(out_path))
         elif args.wiggle:
             print("Creating wiggles for all chromosomes consequently")
             print("This may take long...")

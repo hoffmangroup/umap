@@ -81,6 +81,8 @@ The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers 
 News
 ----
 
+* Version 1.2.0: Fixed the issue with 1-based inclusive interval BED files. As of this
+  version, the BED files are 0-based and they don't contain overlapping intervals.
 * Version 1.1.1: In addition to wiggle, you can create bedGraph of multi-read mappability.
   New expectation: order of chromosomes in chromosome-size file must match genome FASTA.
   In this version, *unify_bowtie* filters out any unexpected unique mapping of a *k*-mer

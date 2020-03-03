@@ -140,14 +140,15 @@ class Int8Handler:
                 else:
                     out_link = gzip.open(out_name, "ab")
                 if len(bed_kmer_pos) > 0:
-                    print "Found %d regions in %s" %\
-                        (bed_kmer_pos.shape[0], cur_chr)
+                    len_regions = bed_kmer_pos.shape[0]
+                    print("Found {} regions in {}".format(
+                            len_regions, cur_chr))
                     for bed_line in bed_kmer_pos:
                         line_out = [str(val) for val in bed_line]
                         line_out = "\t".join(line_out) + "\n"
                         out_link.write(line_out)
-                    print "Created data of %s at %s" %\
-                        (cur_chr, str(datetime.now()))
+                    print("Created data of {} at {}".format(
+                            cur_chr, str(datetime.now())))
                 out_link.close()
 
     def get_bed6(self, uniquely_mappable, kmer,
@@ -195,8 +196,8 @@ class Int8Handler:
                 if poses_end[ind_st] + kmer - 1 > chr_length:
                     ind_high.append(ind_st)
             bed_kmer_pos = np.array(
-                [[cur_chr, str(poses_start[i] + 1),
-                  str(poses_end[i] + kmer - 1),
+                [[cur_chr, str(poses_start[i]),  # adjusted for 0-indexing
+                  str(poses_end[i] + kmer),
                   "k" + str(kmer),
                   1, STRAND] for i in range(len(poses_start))],
                 dtype="S64")
@@ -211,8 +212,8 @@ class Int8Handler:
         uint_link = gzip.open(uint_path, "rb")
         uint_ar = np.frombuffer(uint_link.read(), dtype=np.uint8)
         uint_link.close()
-        print "Processing {} for {} {}".format(
-            uint_path, kmer, cur_chr)
+        print("Processing {} for {} {}".format(
+            uint_path, kmer, cur_chr))
         less_than_kmer = uint_ar <= kmer
         not_zero = uint_ar != 0
         uniquely_mappable = np.array(
@@ -302,22 +303,59 @@ class Int8Handler:
         elif uniquely_mappable[0] == 1:
             poses_start = np.append([0], poses_start)
             poses_end = np.append(poses_end, [len(uniquely_mappable)])
+        unimap_1_diff = np.diff(
+            np.array(np.around(ar_quant, 3) == 1, dtype=int))
+        st_1s, = np.where(unimap_1_diff == 1)
+        end_1s, = np.where(unimap_1_diff == -1)
+        if len(st_1s) != len(end_1s):
+            if len(st_1s) > len(end_1s):
+                end_1s = np.append(end_1s, [len(uniquely_mappable)])
+            else:
+                st_1s = np.append([0], st_1s)
+        print(
+            "There are {} regions with full mappability:".format(
+                st_1s.shape[0]))
+        print(str(st_1s[:10]))
         for ind_st in range(len(poses_start)):
             pos_st = poses_start[ind_st] + 1
             pos_end = poses_end[ind_st] + 1
             if bedGraph:
+                # Adding positions to output
+                exclude_regions = []
                 for each_pos in range(pos_st, pos_end):
-                    out_list = [chrom, str(each_pos), str(each_pos + 1),
-                                str(np.around(ar_quant[each_pos], 3))]
-                    out_link.write("\t".join(out_list) + "\n")
+                    each_pos = each_pos - 1
+                    cur_val = np.around(ar_quant[each_pos], 3)
+                    if cur_val == 1:
+                        next_val = np.around(ar_quant[each_pos + 1], 3)
+                        if next_val == 1 and each_pos not in exclude_regions:
+                            idx_1_temp = np.where(st_1s == each_pos - 1)[0][0]
+                            exclude_regions.extend(
+                                range(st_1s[idx_1_temp] + 1,
+                                      end_1s[idx_1_temp] + 1))
+                            out_list = [chrom, str(st_1s[idx_1_temp] + 1),
+                                        str(end_1s[idx_1_temp] + 1),
+                                        str(cur_val)]
+                            out_str = "\t".join(out_list) + "\n"
+                            out_link.write(out_str.encode('utf-8'))
+                        elif next_val < 1 and each_pos not in exclude_regions:
+                            out_list = [chrom, str(each_pos),
+                                        str(each_pos + 1),
+                                        str(np.around(ar_quant[each_pos], 3))]
+                            out_str = "\t".join(out_list) + "\n"
+                            out_link.write(out_str.encode('utf-8'))
+                    else:
+                        out_list = [chrom, str(each_pos), str(each_pos + 1),
+                                    str(np.around(ar_quant[each_pos], 3))]
+                        out_str = "\t".join(out_list) + "\n"
+                        out_link.write(out_str.encode('utf-8'))
             else:
                 start_line = "fixedStep " +\
                     "chrom={} start={} step=1 span=1\n".format(
                         chrom, pos_st)
-                out_link.write(start_line)
+                out_link.write(start_line.encode('utf-8'))
                 for each_pos in range(pos_st, pos_end):
-                    out_link.write(
-                        str(np.around(ar_quant[each_pos], 3)) + "\n")
+                    out_str = str(np.around(ar_quant[each_pos], 3)) + "\n"
+                    out_link.write(out_str.encode('utf-8'))
         print(
             "Finished saving the data to {} at {}".format(
                 out_path, str(datetime.now())))
@@ -325,6 +363,9 @@ class Int8Handler:
 
 
 if __name__ == "__main__":
+    print("Use the parallel version: uint8_to_bed_parallel.py")
+    print("This script is no longer supported or updated")
+    raise ValueError("Use uint8_to_bed_parallel.py")
     parser = argparse.ArgumentParser(description="Converts\
     unionized uint8 outputs of umap/ubismap to bed files")
     parser.add_argument(

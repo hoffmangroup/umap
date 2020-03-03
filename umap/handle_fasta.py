@@ -39,12 +39,12 @@ class FastaHandler:
         and converts nucleotides or reverse complements
         sequences if necessary (for Bismap feature)
         """
-        chrsize_dict = self.get_chrsize_dict()
+        chrsize_dict, first_chrom = self.get_chrsize_dict()
         print("Reverse complementation: {}".format(self.complement))
         print("Nucleotide conversion: {}".format(self.conversion))
         if not os.path.exists(self.chr_dir):
             os.makedirs(self.chr_dir)
-        chr_path = self.chr_dir + "/chr1.fasta"
+        chr_path = self.chr_dir + "/{}.fasta".format(first_chrom)
         chr_link = open(chr_path, "w")
         if self.complement:
             chr_path_rc = chr_path.replace(".fasta", "_RC.fasta")
@@ -158,12 +158,15 @@ class FastaHandler:
             chr_link_rc.write(ad_seq + "\n")
 
     def get_chrsize_dict(self):
+        first_chrom = ""
         chrsize_dict = {}
         with open(self.chrsize_path, "r") as chrsize_link:
             for chrsize_line in chrsize_link:
                 chrom, size = chrsize_line.rstrip().split("\t")
+                if first_chrom == "":
+                    first_chrom = chrom
                 chrsize_dict[chrom] = int(size)
-        return chrsize_dict
+        return chrsize_dict, first_chrom
 
 
 if __name__ == "__main__":
