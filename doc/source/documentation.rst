@@ -101,7 +101,7 @@ Bismap requires numpy and pandas and it uses other python modules such as:
 Umap uses mercurial version control. Make sure that mercurial (hg) is installed.
 Download Umap to the directory of your python packages using::
 
-    hg clone https://bitbucket.org/hoffmanlab/umap
+    git clone https://github.com/hoffmangroup/umap.git
     cd umap
     python setup.py install
 
@@ -181,7 +181,7 @@ Contact, support and questions
 For support of Umap, please user our `mailing list <https://groups.google.com/forum/#!forum/ubismap>`_.
 Specifically, if you want to report a bug or request a feature,
 please do so using
-the `Umap issue tracker <https://bitbucket.org/hoffmanlab/umap/issues>`_.
+the `Umap issue tracker <https://github.com/hoffmangroup/umap/issues>`_.
 We are interested in all comments on the package,
 and the ease of use of installation and documentation.
 
