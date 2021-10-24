@@ -13,7 +13,7 @@ Its Bismap extension identifies mappability of the bisulfite converted genome (m
 
 the mappability of a genome for a given read length *k*.
 First, it generates all possible *k*-mers of the genome.
-Second, it maps these unique *k*-mers to the genome with `Bowtie <http://bowtie-bio.sourceforge.net/index.shtml>`_ version 1.1.0.
+Second, it maps these unique *k*-mers to the genome with `Bowtie <http://bowtie-bio.sourceforge.net/index.shtml>`_ version 1.1.0 (also tested with v1.1.1).
 Third, Umap marks the start position of each *k*-mer that aligns to only one region in the genome.
 Umap repeats these steps for a range of different *k*-mers and stores the data of each chromosome
 in a binary vector *X* with the same length as the chromosome's sequence.
@@ -81,6 +81,8 @@ The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers 
 News
 ----
 
+
+* Version 1.2.1: Fixed an issue for using umap without scheduler
 * Version 1.2.0: Fixed the issue with 1-based inclusive interval BED files. As of this
   version, the BED files are 0-based and they don't contain overlapping intervals.
 * Version 1.1.1: In addition to wiggle, you can create bedGraph of multi-read mappability.
@@ -110,6 +112,9 @@ Bismap requires numpy and pandas and it uses other python modules such as:
 * os
 * re
 * subprocess
+* numpy (v1.16.6)
+* pandas (0.24.2)
+
 
 Umap uses mercurial version control. Make sure that mercurial (hg) is installed.
 Download Umap to the directory of your python packages using::
@@ -134,6 +139,7 @@ contain header (2 column file with chromosome name and length of the chromosome)
 
     
 The scripts that are produced by **ubismap.py** assume that you are using a Sun Grid Engine computing cluster.
+If you don't have access to the server, you need to change the commands as described below.
 You can use parameters of this script to adjust it to your own system. You may need to manually edit this file
 because many of the SGE settings are very different than other computing clusters.
 However, all of the Umap modules accept *-job_id* which allows you to use the modules without a cluster or if
@@ -243,6 +249,38 @@ When you have created the merged mappability of each chromosome once for C :math
 and once for G :math:`\rightarrow` A genome, you should use combine_umaps.py and specify -kmer_dir_2 ::
 
     qsub <...> -t 1-<NumberOfChromosomes> python combine_umaps.py <OutDirC2T> <ChromSizePath> -out_dir <OutDir> -kmer_dir_2 <OutDirG2A>
+
+
+Using Umap without an scheduler
+------------------------------
+
+If you don't have access to a job scheduler, you can still use Umap.
+
+Example on the test data include first running ::
+
+    python ubismap.py data/genome.fa data/chrsize.tsv data/umap NA <pathToBowtieBin>/bowtie-build --kmers 7 12 -write_script run_umap.sh
+
+
+Then, you need to modify the contents of run_umap.sh as ::
+
+    bowtie-build data/umap/genome/genome.fa data/umap/genome/Umap_bowtie.ind
+    for i in {1..2}
+    do
+        python get_kmers.py data/umap/chrsize.tsv data/umap/kmers/k7 data/umap/chrs data/umap/chrsize_index.tsv -job_id $i --kmer k7
+        python get_kmers.py data/umap/chrsize.tsv data/umap/kmers/k12 data/umap/chrs data/umap/chrsize_index.tsv -job_id $i --kmer k12
+        python run_bowtie.py data/umap/kmers/k7 /Users/mehran/anaconda3/envs/py27/bin data/umap/genome Umap_bowtie.ind -job_id $i
+        python run_bowtie.py data/umap/kmers/k12 /Users/mehran/anaconda3/envs/py27/bin data/umap/genome Umap_bowtie.ind -job_id $i
+    done
+    for i in {1..2}
+    do
+        python unify_bowtie.py data/umap/kmers/k7 data/umap/chrsize.tsv -job_id $i
+        python unify_bowtie.py data/umap/kmers/k12 data/umap/chrsize.tsv -job_id $i
+    done
+    for i in {1..2}
+    do
+        python combine_umaps.py data/umap/kmers data/umap/chrsize.tsv -job_id $i
+    done
+
 
 
 Requesting Genomes

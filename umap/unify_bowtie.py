@@ -109,7 +109,7 @@ class UnifyBowtie:
         chr_paths = ["{}/{}".format(self.bowtie_outdir, bowtie_path)
                      for bowtie_path in subset_list(
                      os.listdir(self.bowtie_outdir),
-                     "{}\.".format(new_chr_name))]
+                     "{}.".format(new_chr_name))]
         bowtie_paths = subset_list(chr_paths, ".bowtie.gz")
         unique_ar = np.zeros(size, dtype=np.uint8)
         for bowtie_path in bowtie_paths:
@@ -155,4 +155,6 @@ if __name__ == "__main__":
     job_id = args.job_id
     if job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1
+    else:
+        job_id = job_id - 1
     UnifyBowtie(args.bowtie_outdir, args.chrsize_path, job_id)

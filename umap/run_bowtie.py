@@ -64,7 +64,7 @@ class BowtieWrapper:
         if job_id <= len(kmer_names):
             try:
                 kmer_file = kmer_names[job_id]
-            except:
+            except Exception:
                 raise ValueError(
                     "{} does not exist. Time: {}".format(
                         job_id, str(datetime.now())))
@@ -131,6 +131,8 @@ if __name__ == "__main__":
     job_id = args.job_id
     if job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1
+    else:
+        job_id = job_id - 1
     BowtieWrapper(args.kmer_dir, args.bowtie_dir,
                   args.index_dir, args.index_name, job_id,
                   args.Bismap)

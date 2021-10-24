@@ -37,7 +37,7 @@ def get_args():
         "under out_dir will be created named 'kmer' and "
         "out_dir will be changed to that.")
     parser.add_argument(
-        "--job_id",
+        "-job_id",
         default=0,
         type=int,
         help="If not submitted in job array, would require this "
@@ -59,6 +59,8 @@ def get_args():
         out_dir = "{}/{}".format(out_dir, kmer)
     if job_id == 0:
         job_id = int(os.environ[args.var_id]) - 1
+    else:
+        job_id = job_id - 1
     out_list = [args.chromsize_path, out_dir,
                 kmer, job_id, args.chr_dir,
                 args.idx_path]
@@ -80,7 +82,7 @@ class GetKmers:
         :param int job_id: Reference ID used for finding chrom, start and end
         :param chr_dir: Path to directory with chromosome fasta files
         :param chromsize_path: Path to 2 column file of chrom\tsize\n
-        :param idx_path: Path to 4 column file of index\tchrom\t\st\tend\n
+        :param idx_path: Path to 4 column file of index\tchrom\tst\tend\n
 
         :returns: An object with methods such as get_step_fasta(),
             get_seq_ar(), write_kmers() and write_regions().
@@ -123,7 +125,7 @@ class GetKmers:
             chrom, start, end = [
                 dict_idx[each_line][job_id] for
                 each_line in ["Chromosome", "Start", "End"]]
-        except:
+        except Exception:
             raise ValueError(
                 "{} Job id is larger than available indices".format(
                     job_id))
