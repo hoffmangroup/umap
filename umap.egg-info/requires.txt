@@ -1,3 +1,0 @@
-argparse
-numpy
-pandas
