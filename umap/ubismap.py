@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import re
 import subprocess
-from handle_fasta import FastaHandler
+from .handle_fasta import FastaHandler
 
 
 class ArgHandler:
@@ -138,8 +138,8 @@ class ArgHandler:
             len_chrs_after_complement = complement_chrsize_file(chrsize_path)
             if len_chrs_after_complement != LenChrs:
                 LenChrs = len_chrs_after_complement
-                print "Length of chromosomes changed to %d to account for\
-                reverse complements" % LenChrs
+                print("Length of chromosomes changed to %d to account for\
+                reverse complements" % LenChrs)
         idx_path = index_unique_kmer_jobids(chrsize_path, args.chunk)
         self.genome_path = genome_path
         self.chrom_dir = chrom_dir
@@ -192,6 +192,7 @@ def index_genome(queue_name, converted_path,
         index_suffix = "BisMap_bowtie.ind"
     else:
         index_suffix = "Umap_bowtie.ind"
+
     index_job_line = ["qsub", "-q", queue_name, "-terse",
                       "-N", "Index-Bowtie", "-o",
                       "{}/index_genome.LOG".format(converted_path),
@@ -212,7 +213,7 @@ def index_genome(queue_name, converted_path,
                 "Your system is incompatible with direct job "
                 "submission. Please specify -write and manually "
                 "modify the job submission options.")
-    print "job id %s from indexing genome" % job_num
+    print("job id %s from indexing genome" % job_num)
     return index_suffix, job_num
 
 
@@ -274,7 +275,7 @@ def make_unique_kmers(chrom_dir, dir_kmers,
         except:
             raise ValueError("Incompatible system? Try -write.")
         job_num = job_line.stdout.read().rstrip()
-        print "job id %s from creating unique kmers" % job_num
+        print("job id %s from creating unique kmers" % job_num)
         job_num = job_num.split(".")[0]
     return job_num, ind_jobs
 
@@ -316,7 +317,7 @@ def run_bowtie(queue_name, dir_kmers, bowtie_path, index_dir,
         except:
             raise ValueError("Incompatible system? Try -write")
         job_num = job_line.stdout.read()
-        print "job id %s from mapping with bowtie" % job_num
+        print("job id %s from mapping with bowtie" % job_num)
         job_num = job_num.split(".")[0]
     return job_num
 
@@ -452,7 +453,7 @@ def complement_chrsize_file(chrsize_path):
     :returns: The actual number of chromosomes
     """
     if not os.path.exists(chrsize_path):
-        print "%s didn't exist!" % chrsize_path
+        print("%s didn't exist!" % chrsize_path)
     ad_lines = []
     len_chrs = 0
     NO_RC = True
@@ -468,9 +469,9 @@ def complement_chrsize_file(chrsize_path):
         with open(chrsize_path, "a") as chrsize_link:
             for each_line in ad_lines:
                 len_chrs = len_chrs + 1
-                print "adding %s" % each_line
+                print("adding %s" % each_line)
                 chrsize_link.write(each_line)
-        print "Added reverse complemented chromosomes"
+        print("Added reverse complemented chromosomes")
     else:
         "Reverse complemented chromosomes existed"
     return len_chrs
@@ -512,27 +513,27 @@ def process_genome(GenomeReady, genome_path,
             index_suffix = "Umap_bowtie.ind"
         index_job_id = "1"
     else:
-        print "Started copying/reverse complementing/converting"
+        print("Started copying/reverse complementing/converting")
         if not os.path.exists(genome_path):
             if Bismap:
-                print "Bismap reverse complementation started\
-                at %s" % str(datetime.now())
+                print("Bismap reverse complementation started\
+                at %s" % str(datetime.now()))
                 FastaObj = FastaHandler(fasta_path, genome_path, chrsize_path,
                                         chr_dir, True, conversion)
             else:
-                print "Umap genome is being processed"
+                print("Umap genome is being processed")
                 FastaObj = FastaHandler(fasta_path, genome_path, chrsize_path,
                                         chr_dir, False, "None")
             FastaObj.handle_fasta()
         elif Bismap:
-            print "Assuming that %s/genome/genome.fa includes reverse\
-            complemented chromosomes." % out_dir
-        print "Indexing the genome started at %s" % str(datetime.now())
+            print("Assuming that %s/genome/genome.fa includes reverse\
+            complemented chromosomes." % out_dir)
+        print("Indexing the genome started at %s" % str(datetime.now()))
         index_suffix, index_job_id = index_genome(
             queue_name,
             "{}/genome".format(out_dir),
             bowtie_path, Bismap, write_script, pipe)
-        print "Done with indexing at %s" % str(datetime.now())
+        print("Done with indexing at %s" % str(datetime.now()))
     return index_suffix, index_job_id
 
 
@@ -581,7 +582,7 @@ def index_unique_kmer_jobids(chrsize_path, CHUNK_SIZE=1e6):
     return ind_path
 
 
-if __name__ == "__main__":
+def main():
     args = ArgHandler()
     # genome_path, chrom_dir, dir_kmers, chrsize_path, out_dir = args_list[:5]
     # idx_path, conversion, Bismap, queue_name = args_list[5:9]
@@ -599,7 +600,7 @@ if __name__ == "__main__":
         args.write_script, args.pipe)
     if args.ExitAfterIndexing:
         pass
-        print "Exiting because -ExitAfterIndexing is specified"
+        print("Exiting because -ExitAfterIndexing is specified")
     else:
         for kmer in args.kmers:
             kmer = int(kmer)
@@ -628,7 +629,7 @@ if __name__ == "__main__":
                 args.var_id, args.chrsize_path,
                 args.SimultaneousJobs, args.pipe)
             conversion_job_id = kmer_job_id
-            print "Jobs submitted for k%d" % kmer
+            print("Jobs submitted for k%d" % kmer)
         combine_files(bowtie_unify_id, args.source_dir,
                       args.dir_kmers,
                       args.queue_name,
@@ -637,3 +638,7 @@ if __name__ == "__main__":
                       args.LenChrs, args.pipe)
         conversion_job_id = bowtie_unify_id
         print("Successfully done with creating all jobs")
+
+
+if __name__ == "__main__":
+    main()
