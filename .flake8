@@ -1,0 +1,12 @@
+[flake8]
+exclude = 
+  .git,
+  __pycache__,
+  doc,
+  build,
+  dist,
+  .eggs,
+  
+; Requires flake8-import-order and flake8-quotes packages
+inline-quotes = double
+import-order-style = google
