@@ -69,9 +69,9 @@ class FastaHandler:
                     if "\t" in ad_line:
                         ad_line = ad_line.split("\t")[0]
                     chr_link.close()
-                    print ad_fin
+                    print(ad_fin)
                     chrom = ad_line[1:]
-                    CHROM_EXISTS = chrom in chrsize_dict.keys()
+                    CHROM_EXISTS = chrom in list(chrsize_dict.keys())
                     chr_path = "{}/{}.fasta".format(
                         self.chr_dir, chrom)
                     chr_link = open(chr_path, "w")
@@ -127,7 +127,7 @@ class FastaHandler:
                             print(
                                 "{} to {} with length of {}".format(
                                     start, end_pos,
-                                    len(range(start, end_pos))))
+                                    len(list(range(start, end_pos)))))
                             print(ad_line_rc)
                             warnings.warn(
                                 "Failed to add sequences for {}".format(chrom))

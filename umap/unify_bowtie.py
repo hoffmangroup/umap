@@ -100,7 +100,7 @@ class UnifyBowtie:
         of a given chromosome. Is automatically called by
         UnifyBowtie."""
         KMER = int(self.bowtie_outdir.split("/")[-1].split("k")[-1])
-        all_chrs = self.chr_dict.keys()
+        all_chrs = list(self.chr_dict.keys())
         all_chrs.sort()
         chrom = all_chrs[self.ind_chr]
         chrom_idx = self.chrom_ord_dict[chrom]
