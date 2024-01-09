@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+title: Umap and Bismap
+version: 1.2.0
+date-released: "2024-01-09"
+message: If you use this software, please cite both the article from preferred-citation and the software itself.
+abstract: Identifies uniquely mappable regions of any genome. Its Bismap extension identifies mappability of the bisulfite converted genome (methylome).
+authors:
+  - family-names: Karimzadeh
+    given-names: Mehran
+    affiliation: "Pricess Maraget Cancer Centre"
+    orcid: "https://orcid.org/0000-0002-7324-6074"
+  - family-names: Hoffman
+    given-names: Michael M.
+    affiliation: "University Health Network"
+    orcid: "https://orcid.org/0000-0002-4517-1562"
+license: GPL-2.0-only
+repository-code: "https://github.com/hoffmangroup/umap"
+url: "https://bismap.hoffmanlab.org"
+preferred-citation:
+  type: edited-work
+  title: Umap and Bismap: quantifying genome and methylome mappability
+  year: 2018
+  authors:
+    - family-names: Karimzadeh
+      given-names: Mehran
+      affiliation: "Pricess Maraget Cancer Centre"
+      orcid: "https://orcid.org/0000-0002-7324-6074"
+    - family-names: Ernst
+      given-names: Carl
+      affiliation: "McGill University"
+      orcid: "https://orcid.org/0000-0002-2959-221X"
+    - family-names: Kundaje
+      given-names: Anshul
+      affiliation: "Stanford University"
+      orcid: "https://orcid.org/0000-0003-3084-2287"
+    - family-names: Hoffman
+      given-names: Michael M.
+      affiliation: "University Health Network"
+      orcid: "https://orcid.org/0000-0002-4517-1562"
+  doi: 10.1093/nar/gky677
+  journal: "Nucleic Acids Research"
+  publisher:
+    name: "Oxford University Press"
