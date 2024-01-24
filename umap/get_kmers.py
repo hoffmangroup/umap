@@ -12,8 +12,8 @@ FASTA_FILE_IGNORE_DELIMITERS = (b'>', b';')
 
 def get_args():
     parser = ArgumentParser(
-        description="Prints all unique kmers per line from a single sequence"
-        " FASTA file")
+        description="Prints all unique kmers per line from all sequences in a"
+        " given FASTA file to standard output")
 
     parser.add_argument(
         "--kmer-length", "-k",
@@ -24,8 +24,7 @@ def get_args():
 
     parser.add_argument(
         "--fasta-file", "-f",
-        help="Filename of single-sequence reference fasta files for kmer"
-             " generation")
+        help="Filename of reference fasta file for kmer generation")
 
     args = parser.parse_args()
 
@@ -37,11 +36,12 @@ def get_args():
     return out_list
 
 
-# TODO: Fix last kmer missing from set
 def create_unique_kmer_list(fasta_file: BinaryIO,
                             kmer_length: int) -> set:
     # Create an empty set
     kmer_set = set()
+
+    # Create a line-based buffer for the current set of nucleotides
     nucleotide_buffer = b''
     kmer_current_index = 0  # NB: index into the nucleotide_buffer
 
@@ -66,6 +66,7 @@ def create_unique_kmer_list(fasta_file: BinaryIO,
                 kmer_current_index += 1
                 kmer_end_index += 1
 
+            # After removing all possible kmers from the buffer
             # Calculate amount the sliding window moved by
             kmer_window_shift = kmer_current_index - kmer_start_index
 
@@ -73,6 +74,13 @@ def create_unique_kmer_list(fasta_file: BinaryIO,
             nucleotide_buffer = nucleotide_buffer[kmer_window_shift:]
             # And move back the current window index by the shift amount
             kmer_current_index -= kmer_window_shift
+        # Otherwise assume that either of the delimiters are indicators of a
+        # new sequence, notably including comments
+        else:
+            # Empty the nucleotide buffer
+            nucleotide_buffer = b''
+            # Reset the current window index
+            kmer_current_index = 0
 
     return kmer_set
 
