@@ -1,6 +1,12 @@
 Umap and Bismap: quantifying genome and methylome mappability
 =============================================================
 
+Note
+----
+It is highly recommended to use tagged version 1.2.1 from this repository if
+you wish to use Umap or Bismap. Other versions have not been tested recently
+and will lack support.
+
 
 Introduction
 ------------
@@ -274,7 +280,7 @@ The next steps include making kmers and aligning them with bowtie::
         echo -e '#!/bin/sh' > Scripts/$JOBNAME.sh
         echo "source activate py27" >> Scripts/$JOBNAME.sh
         echo "python $PWD/get_kmers.py $MAINDIR/chrsize.tsv $MAINDIR/kmers/k$kmer $MAINDIR/chrs $MAINDIR/chrsize_index.tsv  --var_id SLURM_ARRAY_TASK_ID --kmer k$kmer" >> Scripts/$JOBNAME.sh
-        "python run_bowtie.py $MAINDIR/kmers/k$kmer /mnt/work1/software/bowtie/1.1.0 $MAINDIR/genome Umap_bowtie.ind -var_id SLURM_ARRAY_TASK_ID" >> Scripts/$JOBNAME.sh
+        echo "python run_bowtie.py $MAINDIR/kmers/k$kmer /mnt/work1/software/bowtie/1.1.0 $MAINDIR/genome Umap_bowtie.ind -var_id SLURM_ARRAY_TASK_ID" >> Scripts/$JOBNAME.sh
         sbatch -c 1 -p hoffmangroup --mem=8G -t 12:00:00 --array=1-598%60 -o $MAINDIR/kmers/Bismap.UniqueKmers.Align.LOG -e $MAINDIR/kmers/Bismap.UniqueKmers.Align.ERR Scripts/$JOBNAME.sh
     done
 
