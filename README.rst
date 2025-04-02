@@ -3,9 +3,10 @@ Umap and Bismap: quantifying genome and methylome mappability
 
 Note
 ----
-It is highly recommended to use tagged version 1.2.1 from this repository if
-you wish to use Umap or Bismap. Other versions have not been tested recently
-and will lack support.
+It is highly recommended to use tagged `version 1.2.1
+<https://github.com/hoffmangroup/umap/tags>`_ from this repository if you wish
+to use Umap or Bismap. Other versions including the current HEAD have
+not been tested recently and will lack support.
 
 
 Introduction
@@ -117,7 +118,7 @@ Bismap requires numpy and pandas and it uses other python modules such as:
 Umap uses mercurial version control. Make sure that mercurial (hg) is installed.
 Download Umap to the directory of your python packages using::
 
-    hg clone https://bitbucket.org/hoffmanlab/umap
+    git clone https://github.com/hoffmangroup/umap.git
     cd umap
     python setup.py install
 
