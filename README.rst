@@ -3,10 +3,16 @@ Umap and Bismap: quantifying genome and methylome mappability
 
 Note
 ----
-It is highly recommended to use tagged `version 1.2.1
-<https://github.com/hoffmangroup/umap/tags>`_ from this repository if you wish
-to use Umap or Bismap. Other versions including the current HEAD have
-not been tested recently and will lack support.
+`Newmap <https://github.com/hoffmangroup/newmap>` is the intended successor of
+Umap and it is recommended to use it instead and to raise issues there. Issues
+of data availability specific to Umap may still be raised here.
+
+This software is no longer actively maintained.
+
+If you still wish to use Umap/Bisamp it is highly recommended to use tagged
+`version 1.2.1 <https://github.com/hoffmangroup/umap/tags>`_ from this
+repository if you wish to use Umap or Bismap. Other versions including the
+current HEAD have not been tested recently and will lack support going forward.
 
 
 Introduction
@@ -26,7 +32,7 @@ at :math:`X_{i+k}` is uniquely mappable on the forward strand.
 Since we align to both strands of the genome, the reverse complement of this same sequence
 starting at :math:`X_{i+k}` on the reverse strand is also uniquely mappable.
 :math:`X_i = 0` means that the sequence starting at :math:`X_i` and ending at
-:math:`X_{i+k}` can be mapped to at least two different regions in the genome. 
+:math:`X_{i+k}` can be mapped to at least two different regions in the genome.
 
 
 Mappability of the bisulfite-converted genome
@@ -56,7 +62,7 @@ we expect the reverse complement to be TTGGAA **TT**. The reason is that both fo
 strands undergo bisulfite treatment simultaneously. There is no DNA replication after bisulfite treatment.
 To handle this issue, Bismap creates its own reverse complemented chromosomes and suppresses Bowtie's usual reverse complement mapping.
 
-Umap and Bismap each take approximately 200 CPU hours to run for a given read length. This can be parallelized in a computing cluster over 400 cores to take only 30 minutes. 
+Umap and Bismap each take approximately 200 CPU hours to run for a given read length. This can be parallelized in a computing cluster over 400 cores to take only 30 minutes.
 
 
 Measures of mappability
@@ -79,7 +85,7 @@ that highly overlap. Therefore, we define the multi-read mappability, the probab
 randomly selected read of length k in a given region is uniquely mappable. For the genomic
 region :math:`G_{i:j}` starting at *i* and ending at *j*, there are :math:`j - i + k + 1`
 *k*-mers that overlap with :math:`G_{i:j}`.
-The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers that are uniquely mappable. 
+The multi-read mappability of :math:`G_{i:j}` is the fraction of those *k*-mers that are uniquely mappable.
 
 
 News
@@ -136,7 +142,7 @@ and a toy genome stored under umap/data ::
 of chromosomes in your chromosome-size file. Chromosome-size file should not
 contain header (2 column file with chromosome name and length of the chromosome).**
 
-    
+
 The scripts that are produced by **ubismap.py** assume that you are using a Sun Grid Engine computing cluster.
 You can use parameters of this script to adjust it to your own system. You may need to manually edit this file
 because many of the SGE settings are very different than other computing clusters.
