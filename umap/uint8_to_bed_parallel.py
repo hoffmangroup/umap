@@ -366,14 +366,14 @@ class Int8Handler:
         unimap_diff = np.diff(np.array(ar_quant > 0, dtype=int))
         poses_start, = np.where(unimap_diff == 1)
         poses_end, = np.where(unimap_diff == -1)
-        if len(poses_start) != len(poses_end):
-            if len(poses_start) > len(poses_end):
-                poses_end = np.append(poses_end, [len(uniquely_mappable)])
-            else:
-                poses_start = np.append([0], poses_start)
-        elif uniquely_mappable[0] == 1:
+        if uniquely_mappable[0] > 0:
+            # If the first element of uniquely_mappable is nonzero,
+            # then poses_start is missing the start position of the first "run"
             poses_start = np.append([0], poses_start)
-            poses_end = np.append(poses_end, [len(uniquely_mappable)])
+        if uniquely_mappable[-1] > 0:
+            # If the last element of uniquely_mappable is nonzero,
+            # then poses_end is missing the end position of the last "run".
+            poses_end = np.append(poses_end, [len(uniquely_mappable) - 1])
         for ind_st in range(len(poses_start)):
             pos_st = poses_start[ind_st] + 1
             pos_end = poses_end[ind_st] + 1
